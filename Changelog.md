@@ -1,5 +1,14 @@
 # ONNX-TensorRT Changelog
 
+## 20.12 Container Releease - 2020-12-17
+
+### Added
+ - Added `setup.py` to properly install `onnx_tensorrt` python backend
+ - Added 4D transpose for ONNX weights [#557](https://github.com/onnx/onnx-tensorrt/pull/557)
+
+### Fixes
+ - Fixed slice computations for large slices [#558](https://github.com/onnx/onnx-tensorrt/pull/558)
+
 ## TensorRT 7.2.1 Release - 2020-10-20
 
 ### Added
