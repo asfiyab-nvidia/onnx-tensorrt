@@ -305,6 +305,99 @@ DEFINE_BUILTIN_OP_IMPORTER(Ceil)
     return unaryHelper(ctx, node, inputs.at(0), nvinfer1::UnaryOperation::kCEIL);
 }
 
+DEFINE_BUILTIN_OP_IMPORTER(Celu)
+{
+
+    using eOp = nvinfer1::ElementWiseOperation;
+    using uOp = nvinfer1::UnaryOperation;
+    using eOpInstuctor = std::tuple<int, int, const nvinfer1::ElementWiseOperation>;
+
+    ASSERT( (!inputs.empty()) && "Inputs vector is empty.", ErrorCode::kINVALID_NODE);
+    OnnxAttrs attrs(node, ctx);
+    TensorOrWeights input = inputs.at(0);
+    float alpha = attrs.get<float>("alpha", 1.0);
+
+    TensorOrWeights weightsOfZero = ctx->createTempWeights(::ONNX_NAMESPACE::TensorProto::FLOAT, {0,{}});
+    ShapedWeights weightsOfOnes = ctx->createTempWeights(::ONNX_NAMESPACE::TensorProto::FLOAT, {0,{}});
+    std::vector<float> ones{1};
+    std::memcpy(weightsOfOnes.values, ones.data(), weightsOfOnes.count() * sizeof(float));
+    ShapedWeights weightsOfAlpha = ctx->createTempWeights(::ONNX_NAMESPACE::TensorProto::FLOAT, {0,{}});
+    std::vector<float> alphas{alpha};
+    std::memcpy(weightsOfAlpha.values, alphas.data(), weightsOfAlpha.count() * sizeof(float));
+
+    // Variable name -> index in inputTensors
+    // x -> 0
+    // 0 -> 1
+    // 1 -> 2
+    // alpha -> 3
+    std::vector<TensorOrWeights> newInputs {input, weightsOfZero, weightsOfOnes, weightsOfAlpha};
+
+    std::vector<nvinfer1::ITensor*> inputTensors;
+    int maxNbDims = -1;
+    for (auto input : newInputs)
+    {
+        maxNbDims = std::max(maxNbDims, input.shape().nbDims);
+    }
+
+    for (auto input : newInputs)
+    {
+        auto* tensor_ptr = &convertToTensor(input, ctx);
+
+        // Broadcast all input tensors to size of maxNbDims
+        broadcastTensor(ctx, tensor_ptr, maxNbDims);
+        ASSERT(tensor_ptr->getDimensions().nbDims == maxNbDims && "Failed to broadcast tensors elementwise!",
+            ErrorCode::kUNSUPPORTED_NODE);
+        inputTensors.push_back(tensor_ptr);
+    }
+
+    // Calculate (x/alpha)
+    std::vector<TensorOrWeights> tempInputs{newInputs[0], newInputs[3]};
+    ASSERT(elementwiseCheck(tempInputs, eOp::kDIV) && "Elementwise layer does not support the given inputs and operator.", ErrorCode::kUNSUPPORTED_NODE);
+    nvinfer1::ITensor* combined = inputTensors.at(0);
+    auto* layer = ctx->network()->addElementWise(*combined, *inputTensors.at(3), eOp::kDIV);
+    ctx->registerLayer(layer, getNodeName(node));
+    ASSERT(layer && "Failed to register layer.", ErrorCode::kUNSUPPORTED_NODE);
+    combined = layer->getOutput(0);
+
+    // Calculate exp(x/alpha) -> 4
+    nvinfer1::IUnaryLayer* uLayer = ctx->network()->addUnary(*combined, uOp::kEXP);
+    ctx->registerLayer(uLayer, getNodeName(node));
+    combined = uLayer->getOutput(0);
+    inputTensors.push_back(combined);
+
+
+    std::vector<eOpInstuctor> operations {
+        // max(0,x) -> 5
+        eOpInstuctor(0, 1, eOp::kMAX),
+        // (exp(x/alpha)-1)) -> 6
+        eOpInstuctor(4, 2, eOp::kSUB),
+        // alpha*(exp(x/alpha)-1) -> 7
+        eOpInstuctor(3, 6, eOp::kPOW),
+        // min(0,alpha*(exp(x/alpha)-1)) -> 8
+        eOpInstuctor(1, 7, eOp::kMIN),
+        // max(0,x) + min(0,alpha*(exp(x/alpha)-1)) -> 9
+        eOpInstuctor(5, 8, eOp::kSUM),
+    };
+
+
+
+    for (auto it : operations)
+    {
+        nvinfer1::ITensor* firstTensor = inputTensors.at(std::get<0>(it));
+        nvinfer1::ITensor* secondTensor = inputTensors.at(std::get<1>(it));
+        const eOp op = std::get<2>(it);
+        tempInputs = {firstTensor, secondTensor};
+        ASSERT( (elementwiseCheck(tempInputs, op)) && "Elementwise layer does not support the given inputs and operator.", ErrorCode::kUNSUPPORTED_NODE);
+        ASSERT( (firstTensor->getDimensions().nbDims == secondTensor->getDimensions().nbDims) && "The number of dimensions should remain the same adding inputs.", ErrorCode::kUNSUPPORTED_NODE);
+        auto* layer = ctx->network()->addElementWise(*firstTensor, *secondTensor, op);
+        ctx->registerLayer(layer, getNodeName(node));
+        ASSERT(layer && "Failed to register layer.", ErrorCode::kUNSUPPORTED_NODE);
+        inputTensors.push_back(layer->getOutput(0));
+    }
+    return {{inputTensors.back()}};
+}
+
+
 DEFINE_BUILTIN_OP_IMPORTER(Clip)
 {
     OnnxAttrs attrs(node, ctx);
@@ -1176,6 +1269,14 @@ DEFINE_BUILTIN_OP_IMPORTER(Greater)
     return elementwiseHelper(ctx, node, inputs, nvinfer1::ElementWiseOperation::kGREATER);
 }
 
+DEFINE_BUILTIN_OP_IMPORTER(GreaterOrEqual)
+{
+    TensorOrWeights greaterResult = &elementwiseHelper(ctx, node, inputs, nvinfer1::ElementWiseOperation::kGREATER).value().at(0).tensor();
+    TensorOrWeights equalResult   = &elementwiseHelper(ctx, node, inputs, nvinfer1::ElementWiseOperation::kEQUAL).value().at(0).tensor();
+    std::vector<TensorOrWeights> newInputs {greaterResult, equalResult};
+    return elementwiseHelper(ctx, node, newInputs, nvinfer1::ElementWiseOperation::kOR);
+}
+
 // singlePassShape is the shape of the output from a single pass.
 nvinfer1::ITensor* concatenateRNNOutputs(IImporterContext* ctx, const ::ONNX_NAMESPACE::NodeProto& node, nvinfer1::ILoop* loop,
     nvinfer1::ITensor* singlePassShape, nvinfer1::ITensor* sequenceLength, nvinfer1::ITensor* concatenatedOutput,
@@ -1654,6 +1755,16 @@ DEFINE_BUILTIN_OP_IMPORTER(Less)
 {
     return elementwiseHelper(ctx, node, inputs, nvinfer1::ElementWiseOperation::kLESS);
 }
+
+DEFINE_BUILTIN_OP_IMPORTER(LessOrEqual)
+{
+    TensorOrWeights lessResult = elementwiseHelper(ctx, node, inputs, nvinfer1::ElementWiseOperation::kLESS).value().at(0);
+    TensorOrWeights equalResult = elementwiseHelper(ctx, node, inputs, nvinfer1::ElementWiseOperation::kEQUAL).value().at(0);
+    
+    std::vector<TensorOrWeights> newInputs {lessResult, equalResult};
+    return elementwiseHelper(ctx, node, newInputs, nvinfer1::ElementWiseOperation::kOR);
+}
+
 
 DEFINE_BUILTIN_OP_IMPORTER(Log)
 {
