@@ -144,6 +144,10 @@ nvinfer1::ITensor* addClip(IImporterContext* ctx, nvinfer1::ITensor* input, floa
 NodeImportResult argMinMaxHelper(IImporterContext* ctx, const ::ONNX_NAMESPACE::NodeProto& node,
     std::vector<TensorOrWeights>& inputs, nvinfer1::TopKOperation op);
 
+//! If t has rank less than nbDims, reshape it to have nbDims by prepending ones to its dimensions.
+//! Assert failure if t has rank greater than nbDims.
+Status broadcastTensor(IImporterContext* ctx, nvinfer1::ITensor*& t, const int nbDims);
+
 // Helper function to broadcast two tensors to the larger one's shape
 Status broadcastTensors(IImporterContext* ctx, nvinfer1::ITensor*& t1, nvinfer1::ITensor*& t2);
 
