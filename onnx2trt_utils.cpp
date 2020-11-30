@@ -1579,7 +1579,6 @@ bool supportsShapeTensor(nvinfer1::LayerType type, nvinfer1::ElementWiseOperatio
         case nvinfer1::LayerType::kRAGGED_SOFTMAX:
         case nvinfer1::LayerType::kRECURRENCE:
         case nvinfer1::LayerType::kRESIZE:
-        case nvinfer1::LayerType::kRNN:
         case nvinfer1::LayerType::kRNN_V2:
         case nvinfer1::LayerType::kSCALE:
         case nvinfer1::LayerType::kSOFTMAX:
