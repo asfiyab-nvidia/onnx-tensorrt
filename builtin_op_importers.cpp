@@ -1955,6 +1955,7 @@ DEFINE_BUILTIN_OP_IMPORTER(LSTM)
     // Roll Rb into Wb (and RBb into WBb). Bias is in the form  [Wb[iofc], Rb[iofc], WBb[iofc], RBb[iofc]].
     // So reshape such that we can perform a reduction to add Wb and Rb.
     nvinfer1::ITensor* combinedBias{nullptr};
+
     if (inputs.size() > 3 && inputs.at(3))
     {
         nvinfer1::ITensor* bias = &convertToTensor(inputs.at(3), ctx);
@@ -2187,6 +2188,77 @@ DEFINE_BUILTIN_OP_IMPORTER(LSTM)
     outputs.emplace_back(loop->addLoopOutput(*Ct1->getOutput(0), nvinfer1::LoopOutput::kLAST_VALUE)->getOutput(0));
 
     return {{outputs}};
+}
+
+DEFINE_BUILTIN_OP_IMPORTER(LpNormalization)
+{
+    using eOp = nvinfer1::ElementWiseOperation;
+    using uOp = nvinfer1::UnaryOperation;
+    using rOp = nvinfer1::ReduceOperation;
+
+    OnnxAttrs attrs(node, ctx);
+    nvinfer1::ITensor* input = &convertToTensor(inputs.at(0), ctx);
+    int axis = attrs.get<int>("axis", -1);
+    int p = attrs.get<int>("p", 2);
+    int nbDims = input->getDimensions().nbDims;
+    nvinfer1::DataType dt = input->getType();
+    ASSERT((dt != nvinfer1::DataType::kBOOL 
+            && dt !=  nvinfer1::DataType::kINT8 
+            && dt !=  nvinfer1::DataType::kINT32) && "Only float inputs/outputs supported in LpNormalization.", ErrorCode::kINVALID_NODE);
+
+    TRT_CHECK(convertAxis(axis, nbDims));
+
+    ASSERT((p == 1 || p == 2) && "Only L1 and L2 normalization are supported.", ErrorCode::kINVALID_NODE);
+    nvinfer1::ITensor* norm;
+    TensorOrWeights zeros = ctx->createTempWeights(::ONNX_NAMESPACE::TensorProto::FLOAT, {0,{}});
+    nvinfer1::ITensor* zerosTensor = &convertToTensor(zeros, ctx);
+    broadcastTensor(ctx, zerosTensor, nbDims);
+
+    if (p == 1) {
+        // abs(x)
+        nvinfer1::IUnaryLayer* absLayer = ctx->network()->addUnary(*input, uOp::kABS);
+        ctx->registerLayer(absLayer, getNodeName(node));
+        norm = absLayer->getOutput(0);
+
+        // norm coeff = sum(abs(x)) along axis dimension
+        nvinfer1::IReduceLayer* reduceLayer = ctx->network()->addReduce(*norm, rOp::kSUM, 1 << axis, true);
+        ctx->registerLayer(reduceLayer, getNodeName(node));
+        norm = reduceLayer->getOutput(0);
+        
+    } else if (p == 2) {
+        // x^2
+        auto* sqrLayer = ctx->network()->addElementWise(*input, *input, eOp::kPROD);
+        ctx->registerLayer(sqrLayer, getNodeName(node));
+        norm = sqrLayer->getOutput(0);
+
+        // sum(x^2) along axis dimension
+        nvinfer1::IReduceLayer* reduceLayer = ctx->network()->addReduce(*norm, rOp::kSUM, 1 << axis, true);
+        ctx->registerLayer(reduceLayer, getNodeName(node));
+        norm = reduceLayer->getOutput(0);
+
+        // norm coeff = sqrt(sum(x^2))
+        nvinfer1::IUnaryLayer* sqrtLayer = ctx->network()->addUnary(*norm, uOp::kSQRT);
+        ctx->registerLayer(sqrtLayer, getNodeName(node));
+        norm = sqrtLayer->getOutput(0);
+    }
+
+    // norm coeff |= 1 (change 0s to 1s, leave all other values same)
+    nvinfer1::IElementWiseLayer* maskLayer = ctx->network()->addElementWise(*norm, *zerosTensor, eOp::kEQUAL);
+    ctx->registerLayer(maskLayer, getNodeName(node));
+    nvinfer1::ITensor* mask = maskLayer->getOutput(0);
+    mask = castHelper(ctx, mask, dt);
+    auto* combinedLayer = ctx->network()->addElementWise(*norm, *mask, eOp::kSUM);
+    ctx->registerLayer(combinedLayer, getNodeName(node));
+    norm = combinedLayer->getOutput(0);
+
+    // x/(norm coeff)
+    // norm tensor is broadcast along axis dimension to match shape of input
+    auto *layer = ctx->network()->addElementWise(
+        *input, *norm, eOp::kDIV);
+    ctx->registerLayer(layer, getNodeName(node));
+    ASSERT(layer && "Failed to register layer.", ErrorCode::kUNSUPPORTED_NODE);
+
+    RETURN_FIRST_OUTPUT(layer);
 }
 
 DEFINE_BUILTIN_OP_IMPORTER(MatMul)
