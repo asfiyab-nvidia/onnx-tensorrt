@@ -2261,6 +2261,78 @@ DEFINE_BUILTIN_OP_IMPORTER(LpNormalization)
     RETURN_FIRST_OUTPUT(layer);
 }
 
+DEFINE_BUILTIN_OP_IMPORTER(LpPool)
+{
+    using eOp = nvinfer1::ElementWiseOperation;
+    using uOp = nvinfer1::UnaryOperation;
+    using pType = nvinfer1::PoolingType;
+
+    OnnxAttrs attrs(node, ctx);
+    nvinfer1::ITensor* input = &convertToTensor(inputs.at(0), ctx);
+    int p = attrs.get<int>("p", 2);
+    int nbDims = input->getDimensions().nbDims;
+    int nbSpatialDims = attrs.get<nvinfer1::Dims>("kernel_shape").nbDims;
+
+    nvinfer1::DataType dt = input->getType();
+    ASSERT((dt != nvinfer1::DataType::kBOOL && dt != nvinfer1::DataType::kINT8 && dt != nvinfer1::DataType::kINT32)
+            && "Only float inputs/outputs supported in LpPool.",
+        ErrorCode::kINVALID_NODE);
+    ASSERT((p == 1 || p == 2) && "Only L1 and L2 normalization are supported.", ErrorCode::kINVALID_NODE);
+
+    nvinfer1::Dims kernelShape = makeDims(nbSpatialDims, 1);
+    nvinfer1::Dims strides = makeDims(nbSpatialDims, 1);
+    nvinfer1::Dims begPadding = makeDims(nbSpatialDims, 0);
+    nvinfer1::Dims endPadding = makeDims(nbSpatialDims, 0);
+    nvinfer1::PaddingMode paddingMode;
+    bool exclude_padding(false);
+    getKernelParams(ctx, node, &kernelShape, &strides, &begPadding, &endPadding, paddingMode, exclude_padding);
+
+    nvinfer1::Dims scalarDims = makeDims(nbDims, 1);
+    float kernelSz{1.0f};
+    for (int i = 0; i < kernelShape.nbDims; i++) {
+        kernelSz *= kernelShape.d[i];
+    }
+    nvinfer1::ITensor* kernelSzTensor
+        = addConstantScalar(ctx, kernelSz, ::ONNX_NAMESPACE::TensorProto::FLOAT, scalarDims)->getOutput(0);
+
+    nvinfer1::ITensor* output;
+    if (p == 1) {
+        // x' = abs(x)
+        nvinfer1::IUnaryLayer* absLayer = ctx->network()->addUnary(*input, uOp::kABS);
+        ctx->registerLayer(absLayer, getNodeName(node));
+        output = absLayer->getOutput(0);
+    } else if (p == 2) {
+        // x' = x^2
+        auto* sqrLayer = ctx->network()->addElementWise(*input, *input, eOp::kPROD);
+        ctx->registerLayer(sqrLayer, getNodeName(node));
+        output = sqrLayer->getOutput(0);
+    }
+
+    // pool_avg(x')
+    nvinfer1::IPoolingLayer* poolLayer = ctx->network()->addPoolingNd(*output, pType::kAVERAGE, kernelShape);
+    poolLayer->setPaddingMode(paddingMode);
+    poolLayer->setPrePadding(begPadding);
+    poolLayer->setPostPadding(endPadding);
+    poolLayer->setStrideNd(strides);
+    poolLayer->setAverageCountExcludesPadding(exclude_padding);
+    ctx->registerLayer(poolLayer, getNodeName(node));
+    output = poolLayer->getOutput(0);
+
+    // pool_sum = pool_avg(x')*kernel_size
+    auto* correctedSumLayer = ctx->network()->addElementWise(*output, *kernelSzTensor, eOp::kPROD);
+    ctx->registerLayer(correctedSumLayer, getNodeName(node));
+    output = correctedSumLayer->getOutput(0);
+
+    // if p == 1, output = pool_sum
+    // if p == 2, output = sqrt(pool_sum)
+    if (p == 2) {
+        nvinfer1::IUnaryLayer* sqrtLayer = ctx->network()->addUnary(*output, uOp::kSQRT);
+        ctx->registerLayer(sqrtLayer, getNodeName(node));
+        output = sqrtLayer->getOutput(0);
+    }
+    return {{output}};
+}
+
 DEFINE_BUILTIN_OP_IMPORTER(MatMul)
 {
     nvinfer1::ITensor* inputA = &convertToTensor(inputs.at(0), ctx);
