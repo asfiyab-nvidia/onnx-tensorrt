@@ -1,5 +1,10 @@
 # ONNX-TensorRT Changelog
 
+## 21.01 Container Release - TBD
+ - Added support for `ReverseSequence` operator.
+ - Added support for `LpNormalization` operator.
+ - Added support for `LpPool` operator.
+
 ## 20.12 Container Releease - 2020-12-17
 
 ### Added
