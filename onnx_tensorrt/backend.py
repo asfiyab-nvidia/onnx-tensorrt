@@ -70,6 +70,7 @@ class TensorRTBackendRep(BackendRep):
         self.shape_tensor_inputs = []
         self.serialize_engine = serialize_engine
         self.verbose = verbose
+        self.dynamic = False
 
         if self.verbose:
             print(f'\nRunning {model.graph.name}...')
@@ -99,10 +100,9 @@ class TensorRTBackendRep(BackendRep):
         num_inputs = self.network.num_inputs
         for idx in range(num_inputs):
             inp_tensor = self.network.get_input(idx)
-            if inp_tensor.is_shape_tensor:
-                self.shape_tensor_inputs.append((inp_tensor.name, idx))
-                if self.verbose:
-                    print(f'\nInput \'{inp_tensor.name}\' at index {idx} is a shape tensor')
+            if inp_tensor.is_shape_tensor or -1 in inp_tensor.shape:
+                self.dynamic = True
+                break
         
         if self.verbose:
             for layer in self.network:
@@ -110,12 +110,11 @@ class TensorRTBackendRep(BackendRep):
 
             print(f'Output shape: {self.network[-1].get_output(0).shape}')
         
-        if len(self.shape_tensor_inputs) == 0:
-            self._build_engine()
-        else:
+        if self.dynamic:
             if self.verbose:
-                print("Deferring engine build to run stage")
-        
+                print("Found dynamic inputs! Deferring engine build to run stage")
+        else:
+            self._build_engine()
         self._output_shapes = {}
         self._output_dtype = {}
         for output in model.graph.output:
@@ -135,12 +134,21 @@ class TensorRTBackendRep(BackendRep):
         if inputs:
             config = self.builder.create_builder_config()
             opt_profile = self.builder.create_optimization_profile()
-            for name, idx in self.shape_tensor_inputs:
-                if inputs[idx].ndim > 0:
-                    val_list = inputs[idx].tolist()
-                    opt_profile.set_shape_input(name, val_list, val_list, val_list)
-                else:
-                    opt_profile.set_shape_input(name, [inputs[idx]], [inputs[idx]], [inputs[idx]])
+            # Set optimization profiles for the input bindings that need them
+            for i in range(self.network.num_inputs):
+                inp_tensor = self.network.get_input(i)
+                name = inp_tensor.name
+                # Set profiles for shape tensors
+                if inp_tensor.is_shape_tensor:
+                    if inputs[i].ndim > 0:
+                        val_list = inputs[i].tolist()
+                        opt_profile.set_shape_input(name, val_list, val_list, val_list)
+                    else:
+                        opt_profile.set_shape_input(name, [inputs[i]], [inputs[i]], [inputs[i]])
+                # Set profiles for dynamic execution tensors
+                elif -1 in inp_tensor.shape:
+                    opt_profile.set_shape(name, inputs[i].shape, inputs[i].shape, inputs[i].shape)
+
             config.add_optimization_profile(opt_profile)
             if self.verbose:
                 print("Building engine with config...")
@@ -176,7 +184,7 @@ class TensorRTBackendRep(BackendRep):
         if isinstance(inputs, np.ndarray):
             inputs = [inputs]
         
-        if len(self.shape_tensor_inputs) > 0:
+        if self.dynamic:
             self._build_engine(inputs)
 
         outputs = self.engine.run(inputs)
