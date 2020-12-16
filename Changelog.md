@@ -7,7 +7,13 @@
  - Added support for the `LpNormalization` operator.
  - Added support for the `LpPool` operator.
 
-## 20.12 Container Releease - 2020-12-17
+### Updated
+ - Updated `onnx_tensorrt` python backend to support dynamic inputs
+
+### Removed
+ - Removed `onnx_tensorrt/config.py` as it is no longer needed
+
+## 20.12 Container Release - 2020-12-17
 
 ### Added
  - Added `setup.py` to properly install `onnx_tensorrt` python backend
