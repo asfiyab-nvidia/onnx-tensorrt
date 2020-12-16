@@ -826,6 +826,82 @@ DEFINE_BUILTIN_OP_IMPORTER(Cosh)
     return unaryHelper(ctx, node, inputs.at(0), nvinfer1::UnaryOperation::kCOSH);
 }
 
+DEFINE_BUILTIN_OP_IMPORTER(CumSum)
+{
+    OnnxAttrs attrs(node, ctx);
+    const int32_t exclusive = attrs.get<int32_t>("exclusive", 0);
+    const int32_t reverse = attrs.get<int32_t>("reverse", 0);
+
+    nvinfer1::ITensor* input = &convertToTensor(inputs.at(0), ctx);
+    auto dims = input->getDimensions();
+    
+    ASSERT(inputs.at(1).is_weights() && "Axis input for CumSum must be an initializer!", ErrorCode::kUNSUPPORTED_NODE);
+    ShapedWeights axisWeights = inputs.at(1).weights();
+    int32_t axis = static_cast<int32_t*>(axisWeights.values)[0];
+    TRT_CHECK(convertAxis(axis, dims.nbDims));
+
+    /* For exclusive CumSums, it is equivalent as a non-exclusive CumSum on a modified input tensor
+
+        Forward summations:
+            concat(0, data[0:length-1:1])
+        
+        Reverse summations:
+            concat(data[1:length:1], 0)
+
+    */
+    if (exclusive)
+    {
+        auto tempDims = dims;
+        tempDims.d[axis] = 1;
+        auto zero = addConstant(ctx, std::vector<float>{0.f}, ::ONNX_NAMESPACE::TensorProto::FLOAT, tempDims)->getOutput(0);
+
+        std::vector<nvinfer1::ITensor*> concatTensors = reverse == 1 ? std::vector<nvinfer1::ITensor*>{input, zero} : std::vector<nvinfer1::ITensor*>{zero, input};
+
+        auto concat = ctx->network()->addConcatenation(concatTensors.data(), concatTensors.size());
+        concat->setAxis(axis);
+        input = concat->getOutput(0);
+
+        if (reverse == 0)
+        {
+            const ShapeTensor subscripts{axesToInterlaceSubscripts(shapeVector(axis), dims.nbDims)};
+            ShapeTensor starts = fillShapeVector(ctx, 0, shapeVector(dims.nbDims));
+            ShapeTensor sizes = interlace(ctx, shapeOf(*input), sub(ctx, gather(ctx, shapeOf(*input), shapeVector(axis)), shapeVector(1)), subscripts);
+            ShapeTensor strides = fillShapeVector(ctx, 1, shapeVector(dims.nbDims));
+            input = addSlice(ctx, *input, starts, sizes, strides)->getOutput(0);
+        }
+        else
+        {
+            const ShapeTensor subscripts{axesToInterlaceSubscripts(shapeVector(axis), dims.nbDims)};
+            ShapeTensor starts = interlace(ctx, fillShapeVector(ctx, 0, shapeVector(dims.nbDims)), shapeVector(1), subscripts);
+            ShapeTensor sizes = interlace(ctx, shapeOf(*input), sub(ctx, gather(ctx, shapeOf(*input), shapeVector(axis)), shapeVector(1)), subscripts);
+            ShapeTensor strides = fillShapeVector(ctx, 1, shapeVector(dims.nbDims));
+            input = addSlice(ctx, *input, starts, sizes, strides)->getOutput(0);
+        }
+    }
+
+    // Scan through each slice across summation axis and add it to the running sum
+    auto loop = ctx->network()->addLoop();
+    nvinfer1::ITensor* tripLimit = getAxisLength(ctx, input, axis);
+    loop->addTripLimit(*tripLimit, nvinfer1::TripLimit::kCOUNT);
+
+    auto iterator = loop->addIterator(*input, axis, reverse);
+    auto data = iterator->getOutput(0);
+    auto newDims = data->getDimensions();
+
+    auto zeroTensor = addConstant(ctx, std::vector<float>(volume(newDims),0.f), ::ONNX_NAMESPACE::TensorProto::FLOAT, newDims)->getOutput(0);
+    auto runningSum = loop->addRecurrence(*zeroTensor);
+    auto runningSumTensor = runningSum->getOutput(0);
+
+    auto curSum = ctx->network()->addElementWise(*data, *runningSumTensor, nvinfer1::ElementWiseOperation::kSUM);
+    runningSum->setInput(1, *curSum->getOutput(0));
+
+    auto reverseFlag = reverse == 1 ? nvinfer1::LoopOutput::kREVERSE : nvinfer1::LoopOutput::kCONCATENATE;
+    nvinfer1::ILoopOutputLayer* loopOut = loop->addLoopOutput(*curSum->getOutput(0), reverseFlag, axis);
+    loopOut->setInput(1, *tripLimit);
+
+    RETURN_FIRST_OUTPUT(loopOut);
+}
+
 DEFINE_BUILTIN_OP_IMPORTER(DepthToSpace)
 {
     // Input tensor is in NCHW format

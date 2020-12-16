@@ -37,7 +37,7 @@ TensorRT supports the following ONNX data types: FLOAT32, FLOAT16, INT8, and BOO
 | ConvTranspose         | Y          | 2D or 3D deconvolutions only\. Weights must be an initializer                                                                          |
 | Cos                   | Y          |
 | Cosh                  | Y          |
-| CumSum                | N          |
+| CumSum                | Y          | Axis must be an initializer
 | DepthToSpace          | Y          |
 | DequantizeLinear      | Y          | Scales and zero\-point value must be initializers                                                                                      |
 | Det                   | N          |
