@@ -14,6 +14,7 @@
 
 ### Updated
  - Updated `onnx_tensorrt` python backend to support dynamic inputs [TODO: MR]
+ - Updated `parse()` and `supportsModel()` API calls with an optional `model_path` parameter to support models with external weights [TODO: MR]
 
 ### Removed
  - Removed `onnx_tensorrt/config.py` as it is no longer needed [TODO: MR]
