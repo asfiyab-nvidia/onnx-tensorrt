@@ -1,17 +1,21 @@
 # ONNX-TensorRT Changelog
 
-## 21.01 Container Release - TBD
+## 21.02 Container Release - TODO: TBD
 ### Added
- - Added support for the `CumSum` operator
- - Added support for the `ReverseSequence` operator.
- - Added support for the `LpNormalization` operator.
- - Added support for the `LpPool` operator.
+ - Added support for the `CumSum` operator [TODO: MR]
+ - Added support for the `ReverseSequence` operator [TOOD: MR]
+ - Added support for the `LpNormalization` operator [TODO: MR]
+ - Added support for the `LpPool` operator [TODO: MR]
+
+### Fixes
+ - Fixed relative path imports for models with external weights [TODO: MR]
+ - Fixed importing loops operators with no loop-carried depedencies [TODO: MR]
 
 ### Updated
- - Updated `onnx_tensorrt` python backend to support dynamic inputs
+ - Updated `onnx_tensorrt` python backend to support dynamic inputs [TODO: MR]
 
 ### Removed
- - Removed `onnx_tensorrt/config.py` as it is no longer needed
+ - Removed `onnx_tensorrt/config.py` as it is no longer needed [TODO: MR]
 
 ## 20.12 Container Release - 2020-12-17
 
