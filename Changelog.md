@@ -10,6 +10,7 @@
 ### Fixes
  - Fixed relative path imports for models with external weights [TODO: MR]
  - Fixed importing loops operators with no loop-carried depedencies [TODO: MR]
+ - Work around unsupported BOOL concats through casting [TODO : MR]
 
 ### Updated
  - Updated `onnx_tensorrt` python backend to support dynamic inputs [TODO: MR]
