@@ -4,7 +4,9 @@ Parses ONNX models for execution with [TensorRT](https://developer.nvidia.com/te
 
 See also the [TensorRT documentation](https://docs.nvidia.com/deeplearning/sdk/#inference).
 
-For the list of recent changes, see the [changelog](Changelog.md).
+For the list of recent changes, see the [changelog](docs/Changelog.md).
+
+For a list of commonly seen issues and questions, see the [FAQ](docs/faq.md).
 
 ## Supported TensorRT Versions
 
