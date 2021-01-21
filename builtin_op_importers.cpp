@@ -846,7 +846,7 @@ DEFINE_BUILTIN_OP_IMPORTER(CumSum)
 
     nvinfer1::ITensor* input = &convertToTensor(inputs.at(0), ctx);
     auto dims = input->getDimensions();
-    
+
     ASSERT(inputs.at(1).is_weights() && "Axis input for CumSum must be an initializer!", ErrorCode::kUNSUPPORTED_NODE);
     ShapedWeights axisWeights = inputs.at(1).weights();
     int32_t axis = static_cast<int32_t*>(axisWeights.values)[0];
@@ -856,7 +856,7 @@ DEFINE_BUILTIN_OP_IMPORTER(CumSum)
 
         Forward summations:
             concat(0, data[0:length-1:1])
-        
+
         Reverse summations:
             concat(data[1:length:1], 0)
 
@@ -1847,7 +1847,6 @@ DEFINE_BUILTIN_OP_IMPORTER(LessOrEqual)
 {
     TensorOrWeights lessResult = elementwiseHelper(ctx, node, inputs, nvinfer1::ElementWiseOperation::kLESS).value().at(0);
     TensorOrWeights equalResult = elementwiseHelper(ctx, node, inputs, nvinfer1::ElementWiseOperation::kEQUAL).value().at(0);
-    
     std::vector<TensorOrWeights> newInputs {lessResult, equalResult};
     return elementwiseHelper(ctx, node, newInputs, nvinfer1::ElementWiseOperation::kOR);
 }
@@ -2289,8 +2288,8 @@ DEFINE_BUILTIN_OP_IMPORTER(LpNormalization)
     int p = attrs.get<int>("p", 2);
     int nbDims = input->getDimensions().nbDims;
     nvinfer1::DataType dt = input->getType();
-    ASSERT((dt != nvinfer1::DataType::kBOOL 
-            && dt !=  nvinfer1::DataType::kINT8 
+    ASSERT((dt != nvinfer1::DataType::kBOOL
+            && dt !=  nvinfer1::DataType::kINT8
             && dt !=  nvinfer1::DataType::kINT32) && "Only float inputs/outputs supported in LpNormalization.", ErrorCode::kINVALID_NODE);
 
     TRT_CHECK(convertAxis(axis, nbDims));
@@ -2311,7 +2310,7 @@ DEFINE_BUILTIN_OP_IMPORTER(LpNormalization)
         nvinfer1::IReduceLayer* reduceLayer = ctx->network()->addReduce(*norm, rOp::kSUM, 1 << axis, true);
         ctx->registerLayer(reduceLayer, getNodeName(node));
         norm = reduceLayer->getOutput(0);
-        
+
     } else if (p == 2) {
         // x^2
         auto* sqrLayer = ctx->network()->addElementWise(*input, *input, eOp::kPROD);

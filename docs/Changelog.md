@@ -4,9 +4,12 @@
 ### Added
  - Added support for the `ReverseSequence` operator [#590] - https://github.com/onnx/onnx-tensorrt/pull/590
  - Updated `parse()` and `supportsModel()` API calls with an optional `model_path` parameter to support models with external weights [#621](https://github.com/onnx/onnx-tensorrt/pull/621)
+ - Added support for the `Celu` operator
  - Added support for the `CumSum` operator
+ - Added support for the `LessOrEqual` operator
  - Added support for the `LpNormalization` operator
  - Added support for the `LpPool` operator
+ - Added support for the `GreaterOrEqual` operator
  - Added support for dynamic inputs in `onnx_tensorrt` python backend
  - Added FAQ section for commonly asked questions
 
