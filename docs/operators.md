@@ -26,6 +26,7 @@ TensorRT supports the following ONNX data types: FLOAT32, FLOAT16, INT8, and BOO
 | BitShift              | N          |
 | Cast                  | Y          | Cast is only supported for TRT types                                                                                                   |
 | Ceil                  | Y          |
+| Celu                  | Y          |
 | Clip                  | Y          | min and max clip values must be an initializer                                                                                         |
 | Compress              | N          |
 | Concat                | Y          |
@@ -59,6 +60,7 @@ TensorRT supports the following ONNX data types: FLOAT32, FLOAT16, INT8, and BOO
 | GlobalLpPool          | Y          |
 | GlobalMaxPool         | Y          |
 | Greater               | Y          |
+| GreaterOrEqual        | Y          |
 | GRU                   | Y          |
 | HardSigmoid           | Y          |
 | Hardmax               | N          |
@@ -70,6 +72,7 @@ TensorRT supports the following ONNX data types: FLOAT32, FLOAT16, INT8, and BOO
 | IsNaN                 | N          |
 | LeakyRelu             | Y          |
 | Less                  | Y          |
+| LessOrEqual           | Y          |
 | Log                   | Y          |
 | LogSoftmax            | Y          |
 | Loop                  | Y          |
