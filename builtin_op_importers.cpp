@@ -3997,14 +3997,14 @@ DEFINE_BUILTIN_OP_IMPORTER(Where)
     RETURN_FIRST_OUTPUT(layer);
 }
 
-// Copies the given field into the fieldData map, returns data and size of the vector into which the data were copied.
+// Copies the given field into the fieldData map, returns data and number of T elements in the vector in which the data was copied into.
 template <typename T>
 std::tuple<const void*, size_t> copyField(const T& field, const std::string& fieldName, string_map<std::vector<uint8_t>>& fieldData)
 {
     constexpr size_t nbBytes{sizeof(T)};
     fieldData[fieldName].resize(nbBytes);
     std::memcpy(fieldData[fieldName].data(), &field, nbBytes);
-    return std::make_tuple(fieldData[fieldName].data(), fieldData[fieldName].size());
+    return std::make_tuple(fieldData[fieldName].data(), fieldData[fieldName].size() / nbBytes);
 }
 
 template <typename T>
@@ -4013,7 +4013,7 @@ std::tuple<const void*, size_t> copyField(const std::vector<T>& repeatedField, c
     const size_t nbBytes{sizeof(T) * repeatedField.size()};
     fieldData[fieldName].resize(nbBytes);
     std::memcpy(fieldData[fieldName].data(), repeatedField.data(), nbBytes);
-    return std::make_tuple(fieldData[fieldName].data(), fieldData[fieldName].size());
+    return std::make_tuple(fieldData[fieldName].data(), fieldData[fieldName].size() / sizeof(T));
 }
 
 std::tuple<const void*, size_t> copyField(const std::string& field, const std::string& fieldName, string_map<std::vector<uint8_t>>& fieldData)
@@ -4037,7 +4037,7 @@ std::tuple<const void*, size_t> copyField(
     const ShapedWeights& field, const std::string& fieldName, string_map<std::vector<uint8_t>>& fieldData)
 {
     // Weights do not require a copy
-    return std::make_tuple(field.values, field.size_bytes());
+    return std::make_tuple(field.values, field.count());
 }
 
 // Load plugin fields from an ONNX node, using fieldData for temporary allocations.
@@ -4050,39 +4050,38 @@ std::vector<nvinfer1::PluginField> loadFields(string_map<std::vector<uint8_t>>& 
         // Name must be retrieved from the map so that it is alive for long enough.
         const std::string& fieldName = fieldData.emplace(fieldNames->fields[i].name, std::vector<uint8_t>{}).first->first;
         const void* data{nullptr};
-        int32_t size{0};
+        int32_t length{0};
         nvinfer1::PluginFieldType type{};
         switch (attrs.type(fieldName))
         {
             case ::ONNX_NAMESPACE::AttributeProto::FLOAT:
-                std::tie(data, size) = copyField(attrs.get<float>(fieldName), fieldName, fieldData);
+                std::tie(data, length) = copyField(attrs.get<float>(fieldName), fieldName, fieldData);
                 type = nvinfer1::PluginFieldType::kFLOAT32;
                 break;
             case ::ONNX_NAMESPACE::AttributeProto::INT:
-                std::tie(data, size) = copyField(attrs.get<int>(fieldName), fieldName, fieldData);
+                std::tie(data, length) = copyField(attrs.get<int>(fieldName), fieldName, fieldData);
                 type = nvinfer1::PluginFieldType::kINT32;
                 break;
             case ::ONNX_NAMESPACE::AttributeProto::STRING:
-                std::tie(data, size) = copyField(attrs.get<std::string>(fieldName), fieldName, fieldData);
+                std::tie(data, length) = copyField(attrs.get<std::string>(fieldName), fieldName, fieldData);
                 type = nvinfer1::PluginFieldType::kCHAR;
                 break;
             case ::ONNX_NAMESPACE::AttributeProto::FLOATS:
-                std::tie(data, size) = copyField(attrs.get<std::vector<float>>(fieldName), fieldName, fieldData);
+                std::tie(data, length) = copyField(attrs.get<std::vector<float>>(fieldName), fieldName, fieldData);
                 type = nvinfer1::PluginFieldType::kFLOAT32;
                 break;
             case ::ONNX_NAMESPACE::AttributeProto::INTS:
-                std::tie(data, size) = copyField(attrs.get<std::vector<int>>(fieldName), fieldName, fieldData);
+                std::tie(data, length) = copyField(attrs.get<std::vector<int>>(fieldName), fieldName, fieldData);
                 type = nvinfer1::PluginFieldType::kINT32;
                 break;
             case ::ONNX_NAMESPACE::AttributeProto::STRINGS:
-                std::tie(data, size) = copyField(attrs.get<std::vector<std::string>>(fieldName), fieldName, fieldData);
+                std::tie(data, length) = copyField(attrs.get<std::vector<std::string>>(fieldName), fieldName, fieldData);
                 type = nvinfer1::PluginFieldType::kCHAR;
                 break;
             case ::ONNX_NAMESPACE::AttributeProto::TENSOR:
             {
                 ShapedWeights tensor{attrs.get<ShapedWeights>(fieldName)};
-                std::tie(data, size) = copyField(tensor, fieldName, fieldData);
-                size /= getDtypeSize(tensor.type); // size is in bytes
+                std::tie(data, length) = copyField(tensor, fieldName, fieldData);
                 switch (tensor.type)
                 {
                 case ::ONNX_NAMESPACE::TensorProto::FLOAT: type = nvinfer1::PluginFieldType::kFLOAT32; break;
@@ -4120,7 +4119,7 @@ std::vector<nvinfer1::PluginField> loadFields(string_map<std::vector<uint8_t>>& 
                         + " are unsupported",
                     ErrorCode::kUNSUPPORTED_NODE);
             }
-            fields.emplace_back(fieldName.c_str(), data, type, size);
+            fields.emplace_back(fieldName.c_str(), data, type, length);
     }
     return fields;
 }
