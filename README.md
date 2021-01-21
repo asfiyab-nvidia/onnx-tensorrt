@@ -35,7 +35,7 @@ For examples of usage of these APIs see:
 
 ## Supported Operators
 
-Current supported ONNX operators are found in the [operator support matrix](operators.md).
+Current supported ONNX operators are found in the [operator support matrix](docs/operators.md).
 
 # Installation
 
