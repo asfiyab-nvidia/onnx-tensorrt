@@ -477,12 +477,10 @@ void removeShapeTensorCasts(IImporterContext* ctx)
         nvinfer1::ILayer* layer = ctx->network()->getLayer(i);
         if (layer->getNbOutputs() > 0 && layer->getOutput(0)->isShapeTensor())
         {
-            layer->resetPrecision();
             layer->resetOutputType(0);
             nvinfer1::ITensor& t = *layer->getOutput(0);
             // Assume that boolean tensors were not cast, and thus have their type correctly set.
             const nvinfer1::DataType shapeTensorType = t.getType() == nvinfer1::DataType::kBOOL ? nvinfer1::DataType::kBOOL : nvinfer1::DataType::kINT32;
-            layer->setPrecision(shapeTensorType);
             layer->setOutputType(0, shapeTensorType);
             // Set type only if necessary, to avoid TensorRT warnings
             // about setting type of non-input/output tensors.
@@ -497,9 +495,9 @@ void removeShapeTensorCasts(IImporterContext* ctx)
             auto reduceOp = type == nvinfer1::LayerType::kREDUCE ? (static_cast<nvinfer1::IReduceLayer*>(layer))->getOperation() : nvinfer1::ReduceOperation::kSUM;
             if (!supportsShapeTensor(type, elementwiseOp, reduceOp))
             {
-                auto name = layer->getOutput(0)->getName();
+                auto name = layer->getName();
                 ctx->unsupportedShapeTensors().insert(name);
-                LOG_ERROR("Found " << name << " as a shape tensor output from a layer that does not support it!");
+                LOG_ERROR("Found unsupported shape tensor producing layer: " << name);
             }
         }
     }
