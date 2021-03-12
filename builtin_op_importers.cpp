@@ -3168,11 +3168,16 @@ DEFINE_BUILTIN_OP_IMPORTER(ReverseSequence)
     const int batch_axis = attrs.get<int>("batch_axis", 1);
 
     nvinfer1::ITensor* input = &convertToTensor(inputs.at(0), ctx);
-    int rank = input->getDimensions().nbDims;
+    const auto dims = input->getDimensions();
+    const int32_t rank = dims.nbDims;
     // Sequence tensor: indices tensor of rank = 1 and shape = [batchsize]
     nvinfer1::ITensor* sequences = &convertToTensor(inputs.at(1), ctx);
     std::vector<nvinfer1::ITensor*> tensors;
-    int size = sequences->getDimensions().d[0];
+
+    // Determine length of batch axis
+    const int32_t size = isDynamic(sequences->getDimensions()) ? dims.d[batch_axis] : sequences->getDimensions().d[0];
+    ASSERT(size != -1 && "This version of TensorRT does not support dynamic ReverseSequence lengths!",
+        ErrorCode::kUNSUPPORTED_NODE);
 
     for (int i = 0; i < size; i++)
     {

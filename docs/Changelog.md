@@ -1,6 +1,14 @@
 # ONNX-TensorRT Changelog
 
-## 21.03 Container Release - 2021-03-01
+## 21.04 Container Release - TBD
+### Added
+
+### Fixes
+- Clarified dynamic shape support for ReverseSequence
+
+### Removed
+
+## 21.03 Container Release - 2021-03-09
 ### Added
 - Added opset13 support for `SoftMax`, `LogSoftmax`, `Squeeze`, and `Unsqueeze`
 - Added support for the `EyeLike` operator
