@@ -127,7 +127,7 @@ TensorRT supports the following ONNX data types: FLOAT32, FLOAT16, INT8, and BOO
 | Relu                      | Y          |
 | Reshape                   | Y          |
 | Resize                    | Y          | Asymmetric coordinate transformation mode only\. Nearest or Linear resizing mode only\. "floor" mode only for resize\_mode attribute\.   |
-| ReverseSequence           | Y          |
+| ReverseSequence           | Y          | Dynamic input shapes are unsupported
 | RNN                       | Y          |
 | RoiAlign                  | N          |
 | Round                     | N          |
