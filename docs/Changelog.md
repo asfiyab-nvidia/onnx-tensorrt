@@ -2,6 +2,7 @@
 
 ## 21.04 Container Release - TBD
 ### Added
+- Added library only build target
 
 ### Fixes
 - Clarified dynamic shape support for ReverseSequence
