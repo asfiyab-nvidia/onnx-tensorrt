@@ -1,3 +1,5 @@
+<!--- SPDX-License-Identifier: Apache-2.0 -->
+
 # ONNX-TensorRT Changelog
 
 ## 21.04 Container Release - TBD
@@ -64,5 +66,5 @@
 
 ## Removed
 - Removed deprecated docker files.
-- Removed deprecated `setup.py`. 
+- Removed deprecated `setup.py`.
 
