@@ -4,7 +4,7 @@
 
 ## 21.05 Container Release - 2021-05-17
 ### Added
-- Added library only build target (MR)
+- Added library only build target [#659](https://github.com/onnx/onnx-tensorrt/pull/659)
 - Added support for negative gather indices [#681](https://github.com/onnx/onnx-tensorrt/pull/681)
 - Added support for `DOUBLE`-typed inputs and weights through downcast to float [#674](https://github.com/onnx/onnx-tensorrt/pull/674)
 - Added support for optional plugin fields in FallbackPlugin path [#676](https://github.com/onnx/onnx-tensorrt/pull/676)
