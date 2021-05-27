@@ -2859,61 +2859,81 @@ DEFINE_BUILTIN_OP_IMPORTER(Neg)
 
 DEFINE_BUILTIN_OP_IMPORTER(NonMaxSuppression)
 {
+    std::vector<nvinfer1::PluginField> f;
+
     // max_output, iou_threshold and score_threshold must be initializers
-    ASSERT(inputs.size() == 5 && "The node requires 5 inputs", ErrorCode::kUNSUPPORTED_NODE);
-    ASSERT(inputs.at(2).is_weights() && "The max_output_boxes_per_class tensor is required to be an initializer.",
-           ErrorCode::kUNSUPPORTED_NODE);
-    ASSERT(inputs.at(3).is_weights() && "The iou_threshold tensor is required to be an initializer.",
-           ErrorCode::kUNSUPPORTED_NODE);
-    ASSERT(inputs.at(4).is_weights() && "The score_threshold tensor is required to be an initializer.",
+    ASSERT(inputs.size() >= 2 && inputs.size() <= 5 && "The node requires between 2-5 inputs",
            ErrorCode::kUNSUPPORTED_NODE);
 
-    // boxes and scores inputs
+    // Input: boxes
     nvinfer1::ITensor* boxesTensorPtr = &convertToTensor(inputs.at(0), ctx);
     ASSERT(boxesTensorPtr->getDimensions().nbDims == 3 && "The boxes tensor must be 3D",
            ErrorCode::kUNSUPPORTED_NODE);
+
+    // Input: scores
     nvinfer1::ITensor* scoresTensorPtr = &convertToTensor(inputs.at(1), ctx);
     ASSERT(scoresTensorPtr->getDimensions().nbDims == 3 && "The scores tensor must be 3D",
            ErrorCode::kUNSUPPORTED_NODE);
 
-    // Populate instanceNormalization plugin properties.
-    const std::string pluginName = "EfficientNMS_TRT";
-    const std::string pluginVersion = "1";
-    std::vector<nvinfer1::PluginField> f;
+    // Input: max_output_boxes_per_class (default = 0)
+    if (inputs.size() >= 3)
+    {
+        ASSERT(inputs.at(2).is_weights() && "The max_output_boxes_per_class input is required to be an initializer.",
+               ErrorCode::kUNSUPPORTED_NODE);
+        auto maxOutputBoxesPerClass = inputs.at(2).weights();
+        f.emplace_back("max_output_boxes_per_class", maxOutputBoxesPerClass.values, nvinfer1::PluginFieldType::kINT32, 1);
+    }
+    else
+    {
+        const int32_t maxOutputBoxesPerClass = 0;
+        f.emplace_back("max_output_boxes_per_class", &maxOutputBoxesPerClass, nvinfer1::PluginFieldType::kINT32, 1);
+    }
 
-    auto maxOutputBoxesPerClass = inputs.at(2).weights();
-    auto iouThreshold = inputs.at(3).weights();
-    auto scoreThreshold = inputs.at(4).weights();
-    f.emplace_back("max_output_boxes_per_class", maxOutputBoxesPerClass.values, nvinfer1::PluginFieldType::kINT32, 1);
-    f.emplace_back("iou_threshold", iouThreshold.values, nvinfer1::PluginFieldType::kFLOAT32, 1);
-    f.emplace_back("score_threshold", scoreThreshold.values, nvinfer1::PluginFieldType::kFLOAT32, 1);
+    // Input: iou_threshold (default = 0)
+    if (inputs.size() >= 4)
+    {
+        ASSERT(inputs.at(3).is_weights() && "The iou_threshold input is required to be an initializer.",
+               ErrorCode::kUNSUPPORTED_NODE);
+        auto iouThreshold = inputs.at(3).weights();
+        f.emplace_back("iou_threshold", iouThreshold.values, nvinfer1::PluginFieldType::kFLOAT32, 1);
+    }
+    else
+    {
+        const float iouThreshold = 0.0f;
+        f.emplace_back("iou_threshold", &iouThreshold, nvinfer1::PluginFieldType::kFLOAT32, 1);
+    }
 
-    const int32_t maxOutputBoxes {3 * maxOutputBoxesPerClass.at<int32_t>(0)};  // 3x the per-class limit
-    const int32_t backgroundClass {-1};
-    const int32_t scoreSigmoid {0};
+    // Input: score_threshold (default = 0)
+    if (inputs.size() >= 5)
+    {
+        ASSERT(inputs.at(4).is_weights() && "The score_threshold input is required to be an initializer.",
+               ErrorCode::kUNSUPPORTED_NODE);
+        auto scoreThreshold = inputs.at(4).weights();
+        f.emplace_back("score_threshold", scoreThreshold.values, nvinfer1::PluginFieldType::kFLOAT32, 1);
+    }
+    else
+    {
+        const float scoreThreshold = 0.0f;
+        f.emplace_back("score_threshold", &scoreThreshold, nvinfer1::PluginFieldType::kFLOAT32, 1);
+    }
+
+    // Attribute: center_point_box (default = 0)
     const int32_t centerPointBox = OnnxAttrs{node, ctx}.get("center_point_box", 0);
-    f.emplace_back("max_output_boxes", &maxOutputBoxes, nvinfer1::PluginFieldType::kINT32, 1);
-    f.emplace_back("background_class", &backgroundClass, nvinfer1::PluginFieldType::kINT32, 1);
-    f.emplace_back("score_sigmoid", &scoreSigmoid, nvinfer1::PluginFieldType::kINT32, 1);
-    f.emplace_back("box_coding", &centerPointBox, nvinfer1::PluginFieldType::kINT32, 1);
+    f.emplace_back("center_point_box", &centerPointBox, nvinfer1::PluginFieldType::kINT32, 1);
 
-    // Transpose scores tesnor from [batch, classes, anchors] to [batch, anchors, classes]
+    // Transpose scores tensor from [batch, classes, anchors] to [batch, anchors, classes]
     nvinfer1::Permutation perm{0, 2, 1};
     nvinfer1::ITensor* transposedScoresTensorPtr = transposeTensor(ctx, node, *scoresTensorPtr, perm);
     ASSERT(transposedScoresTensorPtr && "Failed to transpose the scores input.", ErrorCode::kUNSUPPORTED_NODE);
 
     // Create plugin from registry
-    const auto plugin = createPlugin(getNodeName(node), importPluginCreator(pluginName, pluginVersion), f);
-    ASSERT(plugin != nullptr && "EfficientNMS plugin was not found in the plugin registry!",
+    const auto plugin = createPlugin(getNodeName(node), importPluginCreator("EfficientNMS_ONNX_TRT", "1"), f);
+    ASSERT(plugin != nullptr && "EfficientNMS (ONNX support mode) plugin was not found in the plugin registry!",
            ErrorCode::kUNSUPPORTED_NODE);
     nvinfer1::ITensor* const inputTensorsPtr[2] = {boxesTensorPtr, transposedScoresTensorPtr};
     auto* layer = ctx->network()->addPluginV2(inputTensorsPtr, 2, *plugin);
     ctx->registerLayer(layer, getNodeName(node));
-
-    // Return the 4th output of EfficientNMS
-    nvinfer1::ILayer* layer_ptr = layer;
-    ASSERT(layer_ptr && "Input layer is null.", ErrorCode::kUNSUPPORTED_NODE);
-    return {{layer_ptr->getOutput(4)}};
+    RETURN_FIRST_OUTPUT(layer);
 };
 
 DEFINE_BUILTIN_OP_IMPORTER(Not)
