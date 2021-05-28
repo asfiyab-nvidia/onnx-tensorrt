@@ -2875,6 +2875,10 @@ DEFINE_BUILTIN_OP_IMPORTER(NonMaxSuppression)
     ASSERT(scoresTensorPtr->getDimensions().nbDims == 3 && "The scores tensor must be 3D",
            ErrorCode::kUNSUPPORTED_NODE);
 
+    const int32_t maxOutputBoxesPerClassDefault = 0;
+    const float iouThresholdDefault = 0.0f;
+    const float scoreThresholdDefault = 0.0f;
+
     // Input: max_output_boxes_per_class (default = 0)
     if (inputs.size() >= 3)
     {
@@ -2885,8 +2889,7 @@ DEFINE_BUILTIN_OP_IMPORTER(NonMaxSuppression)
     }
     else
     {
-        const int32_t maxOutputBoxesPerClass = 0;
-        f.emplace_back("max_output_boxes_per_class", &maxOutputBoxesPerClass, nvinfer1::PluginFieldType::kINT32, 1);
+        f.emplace_back("max_output_boxes_per_class", &maxOutputBoxesPerClassDefault, nvinfer1::PluginFieldType::kINT32, 1);
     }
 
     // Input: iou_threshold (default = 0)
@@ -2899,8 +2902,7 @@ DEFINE_BUILTIN_OP_IMPORTER(NonMaxSuppression)
     }
     else
     {
-        const float iouThreshold = 0.0f;
-        f.emplace_back("iou_threshold", &iouThreshold, nvinfer1::PluginFieldType::kFLOAT32, 1);
+        f.emplace_back("iou_threshold", &iouThresholdDefault, nvinfer1::PluginFieldType::kFLOAT32, 1);
     }
 
     // Input: score_threshold (default = 0)
@@ -2913,8 +2915,7 @@ DEFINE_BUILTIN_OP_IMPORTER(NonMaxSuppression)
     }
     else
     {
-        const float scoreThreshold = 0.0f;
-        f.emplace_back("score_threshold", &scoreThreshold, nvinfer1::PluginFieldType::kFLOAT32, 1);
+        f.emplace_back("score_threshold", &scoreThresholdDefault, nvinfer1::PluginFieldType::kFLOAT32, 1);
     }
 
     // Attribute: center_point_box (default = 0)
