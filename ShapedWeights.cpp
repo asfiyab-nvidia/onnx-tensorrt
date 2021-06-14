@@ -170,7 +170,7 @@ bool transposeWeights(ShapedWeights const& weights, nvinfer1::Permutation const&
     std::copy_n(perm.order, nbDims, permDims.d);
     LOG_WARNING("Weights "
         << weights.getName() << " has been transposed with permutation of " << permDims
-        << "! If you plan on overwriting th weights with the Refitter API, the new weights must be pre-transposed.");
+        << "! If you plan on overwriting the weights with the Refitter API, the new weights must be pre-transposed.");
     result->setName(weights.getName());
     return true;
 }
