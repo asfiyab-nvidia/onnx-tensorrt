@@ -25,7 +25,7 @@ set(PARSER_LINKER_SCRIPT  ${ONNX2TRT_ROOT}/libnvonnxparser.version)
 #--------------------------------------------------
 set(ONNX2TRT_MAJOR 8)
 set(ONNX2TRT_MINOR 0)
-set(ONNX2TRT_PATCH 0)
+set(ONNX2TRT_PATCH 1)
 
 #--------------------------------------------------
 # Build configurations, global to all projects
