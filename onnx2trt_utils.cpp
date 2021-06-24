@@ -2024,10 +2024,43 @@ NodeImportResult unaryHelper(
 {
     nvinfer1::ITensor* tensorPtr = &convertToTensor(input, ctx);
     auto inputType = tensorPtr->getType();
-    // TRT does not support INT32 types for Unary operations. TRT only supports BOOL types for the NOT operation
-    bool validUnaryType = op == nvinfer1::UnaryOperation::kNOT
-        ? inputType == nvinfer1::DataType::kBOOL
-        : inputType != nvinfer1::DataType::kBOOL && inputType != nvinfer1::DataType::kINT32;
+    bool validUnaryType = true;
+    switch (op)
+    {
+    case nvinfer1::UnaryOperation::kNOT:
+    {
+        // TRT only supports BOOL types for the NOT operation
+        validUnaryType = (inputType == nvinfer1::DataType::kBOOL);
+        break;
+    }
+    case nvinfer1::UnaryOperation::kABS:
+    {
+        // ABS can work with INT32 types via temporary cast to FLOAT.
+        if (inputType == nvinfer1::DataType::kINT32)
+        {
+            tensorPtr = castHelper(ctx, tensorPtr, nvinfer1::DataType::kFLOAT);
+        }
+        break;
+    }
+    case nvinfer1::UnaryOperation::kNEG:
+    {
+        // NEG can work with INT32 types via ElementWise Layer: (0 - x)
+        if (inputType == nvinfer1::DataType::kINT32)
+        {
+            // Calculate the rank of the input, and set all size to one and rely on broadcasting
+            nvinfer1::ITensor* zeroTensor = addConstant(ctx, std::vector<int32_t>{0}, ::ONNX_NAMESPACE::TensorProto::INT32, {0, {1}})->getOutput(0);
+            CHECK(broadcastTensors(ctx, zeroTensor, tensorPtr));
+            std::vector<TensorOrWeights> layerInputs = {zeroTensor, tensorPtr};
+            return elementwiseHelper(ctx, node, layerInputs, nvinfer1::ElementWiseOperation::kSUB);
+        }
+        break;
+    }
+    default:
+    {
+        // By default TRT does not support INT32 types for Unary operations.
+        validUnaryType = (inputType != nvinfer1::DataType::kBOOL && inputType != nvinfer1::DataType::kINT32);
+    }
+    }
     ASSERT(validUnaryType
             && "This version of TensorRT does not support the given operator with the given input data type.",
         ErrorCode::kUNSUPPORTED_NODE);
@@ -2049,6 +2082,20 @@ NodeImportResult unaryHelper(
     {
         std::vector<int> axes{0};
         tensorPtr = squeezeTensor(ctx, node, *tensorPtr, axes);
+    }
+
+    switch (op)
+    {
+    case nvinfer1::UnaryOperation::kABS:
+    {
+        // Convert casted FLOAT back to INT32
+        if (inputType == nvinfer1::DataType::kINT32)
+        {
+            tensorPtr = castHelper(ctx, tensorPtr, nvinfer1::DataType::kINT32);
+        }
+        break;
+    }
+    default: break;
     }
 
     return {{tensorPtr}};
