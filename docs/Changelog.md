@@ -2,7 +2,7 @@
 
 # ONNX-TensorRT Changelog
 
-## TensorRT 8.0 Release - TBD
+## TensorRT 8.0 Release - 2021-07-01
 ### Added
  - Rehauled resize operator, now fully supporting the following modes:
     - Coordinate Transformation modes: `half_pixel`, `pytorch_half_pixel`, `tf_half_pixel_for_nn`, `asymmetric`, and `align_corners`
