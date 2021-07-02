@@ -58,8 +58,8 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | EyeLike                   | Y          | FP32, FP16, INT32, BOOL |
 | Flatten                   | Y          | FP32, FP16, INT32, BOOL |
 | Floor                     | Y          | FP32, FP16 |
-| Gather                    | Y          | FP32, FP16, INT32, BOOL | Only positive indices (>=0) are supported
-| GatherElements            | Y          | FP32, FP16, INT32, BOOL | Only positive indices (>=0) are supported
+| Gather                    | Y          | FP32, FP16, INT32, BOOL | Only positive indices (>=0) are supported <br />Compile with `-DSUPPORT_NEGATIVE_GATHER=1` to enable support for negative indices
+| GatherElements            | Y          | FP32, FP16, INT32, BOOL | Only positive indices (>=0) are supported <br />Compile with `-DSUPPORT_NEGATIVE_GATHER=1` to enable support for negative indices
 | GatherND                  | N          |
 | Gemm                      | Y          | FP32, FP16, INT8 |
 | GlobalAveragePool         | Y          | FP32, FP16, INT8 |
@@ -100,7 +100,7 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | Multinomial               | N          |
 | Neg                       | Y          | FP32, FP16, INT32 |
 | NegativeLogLikelihoodLoss | N          |
-| NonMaxSuppression         | Y          | FP32, FP16 | Inputs `max_output_boxes_per_class`, `iou_threshold`, and `score_threshold` must be initializers. <br />Output has fixed shape and is padded to length.
+| NonMaxSuppression         | Y [EXPERIMENTAL] | FP32, FP16 | Inputs `max_output_boxes_per_class`, `iou_threshold`, and `score_threshold` must be initializers. Output has fixed shape and is padded to [`max_output_boxes_per_class`, 3].
 | NonZero                   | N          |
 | Not                       | Y          | BOOL |
 | OneHot                    | N          |
