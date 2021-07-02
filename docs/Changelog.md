@@ -13,6 +13,7 @@
    - Added support for per-axis quantization
  - Added support for multi-input ConvTranpose
  - Added support for generic 2D padding
+ - Added experimental support for `NonMaxSuppression`
 
 ### Updated
  - Moved `RefitMap` API to core TensorRT.
