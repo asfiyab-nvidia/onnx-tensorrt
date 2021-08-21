@@ -40,9 +40,9 @@ public:
     {
         if (mNetwork && mOnnxErrorRecorder)
         {
-            mNetwork->setErrorRecorder(mUserErrorRecorder);
             if (mUserErrorRecorder)
             {
+                mNetwork->setErrorRecorder(mUserErrorRecorder);
                 mUserErrorRecorder->decRefCount();
             }
             ONNXParserErrorRecorder::destroy(mOnnxErrorRecorder);
