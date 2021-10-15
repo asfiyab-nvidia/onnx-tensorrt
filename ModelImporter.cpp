@@ -455,9 +455,8 @@ bool ModelImporter::supportsModel(
         // Add the node to the subgraph if:
         //     1. There is an importer function registered for the operator type
         //     2. It is not directly connected to an unsupported input
-        //     3. It is not directly connected to an unsupported shape tensor input
-        //     4. It did not illegally produce a shape tensor output
-        //     5. The importer function did not throw an assertion
+        //     3. It did not illegally produce a shape tensor output
+        //     4. The importer function did not throw an assertion
         bool registered = supportsOperator(node.op_type().c_str());
         bool unsupportedInput = (input_node.empty()) ? false : checkForInput(node);
         bool unsupportedShapeTensor = ctx->unsupportedShapeTensors().count(node.name()) > 0 ? true : false;
@@ -491,8 +490,13 @@ bool ModelImporter::supportsModel(
     return allSupported;
 }
 
+// Mark experimental ops as unsupported
 bool ModelImporter::supportsOperator(const char* op_name) const
 {
+    if (std::string(op_name) == "NonMaxSuppression")
+    {
+        return false;
+    }
     return _op_importers.count(op_name);
 }
 
