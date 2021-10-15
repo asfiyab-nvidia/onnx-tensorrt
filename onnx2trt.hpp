@@ -11,7 +11,7 @@
 
 #include <NvInfer.h>
 #include <functional>
-#include <onnx/onnx_pb.h>
+#include <onnx/onnx.pb.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <fstream>
@@ -54,10 +54,11 @@ public:
     virtual nvinfer1::ILogger& logger() = 0;
     virtual bool hasError() const = 0;
     virtual nvinfer1::IErrorRecorder* getErrorRecorder() const = 0;
-    virtual nvinfer1::IConstantLayer* getConstantLayer(const char* name) const = 0;
 
 protected:
-    virtual ~IImporterContext() {}
+    virtual ~IImporterContext()
+    {
+    }
 };
 
 } // namespace onnx2trt

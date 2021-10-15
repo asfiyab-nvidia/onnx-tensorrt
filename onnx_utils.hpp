@@ -7,7 +7,7 @@
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <google/protobuf/text_format.h>
 #include <iostream>
-#include <onnx/onnx_pb.h>
+#include <onnx/onnx.pb.h>
 #include <sstream>
 
 #pragma once

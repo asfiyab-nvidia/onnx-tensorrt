@@ -5,7 +5,7 @@
 #include "OnnxAttrs.hpp"
 #include "ShapedWeights.hpp"
 #include "onnx2trt_utils.hpp"
-#include <onnx/onnx_pb.h>
+#include <onnx/onnx.pb.h>
 
 template <>
 float OnnxAttrs::get<float>(const std::string& key) const

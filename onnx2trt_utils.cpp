@@ -776,12 +776,6 @@ nvinfer1::ITensor& convertToTensor(TensorOrWeights& input, IImporterContext* ctx
     }
     // Handle non-tensor indices input by adding a new constant layer to the network.
     ShapedWeights& weights = input.weights();
-
-    auto const existingConstantLayer = ctx->getConstantLayer(weights.getName());
-    if (existingConstantLayer != nullptr)
-    {
-        return *(existingConstantLayer->getOutput(0));
-    }
     // Note the TRT doesn't natively handle boolean weights. First create an INT32 weights copy of the boolean weights,
     // then cast it back to bool within TRT.
     if (weights.type == ::ONNX_NAMESPACE::TensorProto::BOOL)

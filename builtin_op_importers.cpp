@@ -1205,8 +1205,8 @@ NodeImportResult QuantDequantLinearHelper(
     else
     {
         // Per-Tensor Quantization.
-        // Currently axis is ignored by TRT, but it is required here by addScaleNd (for computing nbSpatialDims).
-        axis = 1;
+        // Currently axis is ignored by TRT, but it is required here by addScaleNd (for computing nbSpatialDims). Set to a sane default depending on rank the input tensor.
+        axis = nbDims <= 1 ? 0 : 1;
     }
 
     nvinfer1::ILayer* layer = nullptr;
@@ -2162,6 +2162,14 @@ DEFINE_BUILTIN_OP_IMPORTER(If)
     std::vector<nvinfer1::ILayer*> thenLayers, elseLayers;
     CHECK(importSubgraph(ctx, thenGraph, thenLayers));
     CHECK(importSubgraph(ctx, elseGraph, elseLayers));
+
+    // Names must be unique
+    for (auto i = 0; i < nbOutputs; i++)
+    {
+        const auto thenName = thenGraph.output(i).name();
+        const auto elseName = elseGraph.output(i).name();
+        ASSERT(thenName != elseName && "TensorRT requires conditional subgraphs to have different output tensor names!", ErrorCode::kUNSUPPORTED_NODE);
+    }
 
     using InputsMap = std::unordered_map<std::string, nvinfer1::IIfConditionalInputLayer*>;
     InputsMap inputsMap;
@@ -3462,7 +3470,7 @@ DEFINE_BUILTIN_OP_IMPORTER(ReduceSum)
 }
 DEFINE_BUILTIN_OP_IMPORTER(ReduceSumSquare)
 {
-    nvinfer1::ITensor& tensor = inputs.at(0).tensor();
+    nvinfer1::ITensor& tensor = convertToTensor(inputs.at(0), ctx);
     auto* sqr_layer = ctx->network()->addElementWise(tensor, tensor, nvinfer1::ElementWiseOperation::kPROD);
     ASSERT(sqr_layer && "Failed to add an ElementWise layer.", ErrorCode::kUNSUPPORTED_NODE);
     nvinfer1::ITensor* sqr_tensorPtr = sqr_layer->getOutput(0);

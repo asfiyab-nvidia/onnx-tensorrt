@@ -244,7 +244,7 @@ Status getSubgraphTensors(const ::ONNX_NAMESPACE::GraphProto& graph,
         }
     }
 
-    using NodeProto = const ::onnx2trt_onnx::NodeProto;
+    using NodeProto = const ::ONNX_NAMESPACE::NodeProto;
     auto getOutputs = [](NodeProto& node) { return node.output(); };
     auto getInputs = [](NodeProto& node) { return node.input(); };
 

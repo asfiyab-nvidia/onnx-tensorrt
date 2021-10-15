@@ -10,7 +10,7 @@
 #include "trt_utils.hpp"
 
 #include <NvInfer.h>
-#include <onnx/onnx_pb.h>
+#include <onnx/onnx.pb.h>
 
 #include <cstring> // For std::memcpy
 #include <iostream>

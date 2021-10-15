@@ -49,7 +49,7 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | Div                       | Y          | FP32, FP16, INT32 |
 | Dropout                   | Y          | FP32, FP16 |
 | DynamicQuantizeLinear     | N          |
-| Einsum                    | Y          | FP32, FP16 | Ellipsis and diagonal operations are not supported.
+| Einsum                    | Y          | FP32, FP16 | Ellipsis and diagonal operations are not supported. Broadcasting between inputs is not supported
 | Elu                       | Y          | FP32, FP16, INT8 |
 | Equal                     | Y          | FP32, FP16, INT32 |
 | Erf                       | Y          | FP32, FP16 |
