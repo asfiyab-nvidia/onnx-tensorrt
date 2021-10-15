@@ -11,7 +11,7 @@
 
 #include <NvInfer.h>
 #include <functional>
-#include <onnx/onnx.pb.h>
+#include <onnx/onnx_pb.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <fstream>
