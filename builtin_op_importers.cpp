@@ -4070,21 +4070,16 @@ DEFINE_BUILTIN_OP_IMPORTER(Scan)
 
 DEFINE_BUILTIN_OP_IMPORTER(ScatterND)
 {
-    auto* layer = addScatterLayer(ctx, inputs, nvinfer1::ScatterMode::kND);
-    ctx->registerLayer(layer, getNodeName(node));
-    RETURN_FIRST_OUTPUT(layer);
+    return addScatterLayer(ctx, node, inputs, nvinfer1::ScatterMode::kND);
 }
 
 DEFINE_BUILTIN_OP_IMPORTER(ScatterElements)
 {
-    auto* layer = addScatterLayer(ctx, inputs, nvinfer1::ScatterMode::kELEMENT);
     OnnxAttrs attrs(node, ctx);
     int32_t axis = attrs.get<int>("axis", 0);
     int32_t nbDims = inputs.at(0).shape().nbDims;
     CHECK(convertAxis(axis, nbDims));
-    layer->setAxis(axis);
-    ctx->registerLayer(layer, getNodeName(node));
-    RETURN_FIRST_OUTPUT(layer);
+    return addScatterLayer(ctx, node, inputs, nvinfer1::ScatterMode::kELEMENT, axis);
 }
 
 DEFINE_BUILTIN_OP_IMPORTER(Scatter)
