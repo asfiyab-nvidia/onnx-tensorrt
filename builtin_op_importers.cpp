@@ -1381,12 +1381,9 @@ DEFINE_BUILTIN_OP_IMPORTER(Expand)
     const ShapeTensor starts = similar(ctx, newDims, 0);
     // Do the broadcast rule.
     const ShapeTensor sizes = broadcast(ctx, newDims, newShape);
-
-    const ShapeTensor delta = sub(ctx, sizes, newDims);
+    // Compute (x > 1 ? 1 : 0) for x in newDims, assuming positive x, using only TensorRT operations.
     const ShapeTensor one = shapeVector(1);
-    // stride 1 for dims where sizes same as Slice input, 0 for not the same.
-    // delta is non-negative for Expand here
-    const ShapeTensor strides = sub(ctx, one, min(ctx, one, delta));
+    const ShapeTensor strides = min(ctx, one, sub(ctx, newDims, one));
 
     nvinfer1::ISliceLayer* sliceLayer = addSlice(ctx, newInputTensor, starts, sizes, strides);
     ctx->registerLayer(sliceLayer, getNodeName(node));
