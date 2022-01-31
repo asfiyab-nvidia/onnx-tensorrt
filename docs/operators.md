@@ -2,7 +2,7 @@
 
 # Supported ONNX Operators
 
-TensorRT 8.2 supports operators up to Opset 13. Latest information of ONNX operators can be found [here](https://github.com/onnx/onnx/blob/master/docs/Operators.md)
+TensorRT 8.4 supports operators up to Opset 13. Latest information of ONNX operators can be found [here](https://github.com/onnx/onnx/blob/master/docs/Operators.md)
 
 TensorRT supports the following ONNX data types: DOUBLE, FLOAT32, FLOAT16, INT8, and BOOL
 
@@ -69,6 +69,7 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | GreaterOrEqual            | Y          | FP32, FP16, INT32 |
 | GRU                       | Y          | FP32, FP16 | For bidirectional GRUs, activation functions must be the same for both the forward and reverse pass
 | HardSigmoid               | Y          | FP32, FP16, INT8 |
+| HardSwish                 | Y          | FP32, FP16 |
 | Hardmax                   | N          |
 | Identity                  | Y          | FP32, FP16, INT32, INT8, BOOL |
 | If                        | Y          | FP32, FP16, INT32, BOOL | Output tensors of the two conditional branches must have broadcastable shapes, and must have different names
@@ -93,7 +94,7 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | MaxRoiPool                | N          |
 | MaxUnpool                 | N          |
 | Mean                      | Y          | FP32, FP16, INT32 |
-| MeanVarianceNormalization | N          |
+| MeanVarianceNormalization | Y          | FP32, FP16 |
 | Min                       | Y          | FP32, FP16, INT32 |
 | Mod                       | N          |
 | Mul                       | Y          | FP32, FP16, INT32 |
@@ -112,8 +113,8 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | QLinearConv               | N          |
 | QLinearMatMul             | N          |
 | QuantizeLinear            | Y          | FP32, FP16 | `y_zero_point` must be 0                                                                   |
-| RandomNormal              | N          |
-| RandomNormalLike          | N          |
+| RandomNormal              | Y          | FP32, FP16 | `seed` value is ignored by TensorRT
+| RandomNormalLike          | Y          | FP32, FP16 | `seed` value is ignored by TensorRT
 | RandomUniform             | Y          | FP32, FP16 | `seed` value is ignored by TensorRT
 | RandomUniformLike         | Y          | FP32, FP16 | `seed` value is ignored by TensorRT
 | Range                     | Y          | FP32, FP16, INT32 | Floating point inputs are only supported if `start`, `limit`, and `delta` inputs are initializers                                                 |
@@ -148,7 +149,7 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | SequenceInsert            | N          |
 | SequenceLength            | N          |
 | Shape                     | Y          | FP32, FP16, INT32, INT8, BOOL |
-| Shrink                    | N          |
+| Shrink                    | Y          | FP32, FP16, INT32 |
 | Sigmoid                   | Y          | FP32, FP16, INT8 |
 | Sign                      | Y          | FP32, FP16, INT8, INT32 |
 | Sin                       | Y          | FP32, FP16 |
@@ -178,4 +179,4 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | Unsqueeze                 | Y          | FP32, FP16, INT32, INT8, BOOL | `axes` must be a constant tensor                                                                                                         |
 | Upsample                  | Y          | FP32, FP16 |
 | Where                     | Y          | FP32, FP16, INT32, BOOL |
-| Xor                       | N          |
+| Xor                       | Y          | BOOL |
