@@ -358,8 +358,13 @@ Status deserialize_onnx_model(void const* serialized_onnx_model, size_t serializ
     else
     {
         google::protobuf::io::CodedInputStream coded_input(&raw_input);
+#if GOOGLE_PROTOBUF_VERSION >= 3011000
+        // Starting Protobuf 3.11 accepts only single parameter.
+        coded_input.SetTotalBytesLimit(std::numeric_limits<int>::max());
+#else
         // Note: This WARs the very low default size limit (64MB)
         coded_input.SetTotalBytesLimit(std::numeric_limits<int>::max(), std::numeric_limits<int>::max() / 4);
+#endif
         ASSERT( (model->ParseFromCodedStream(&coded_input)) && "Failed to parse the ONNX model.", ErrorCode::kMODEL_DESERIALIZE_FAILED);
     }
     return Status::success();
@@ -376,17 +381,21 @@ Status deserialize_onnx_model(int fd, bool is_serialized_as_text, ::ONNX_NAMESPA
     {
         google::protobuf::io::CodedInputStream coded_input(&raw_input);
         // Note: This WARs the very low default size limit (64MB)
-        coded_input.SetTotalBytesLimit(std::numeric_limits<int>::max(), std::numeric_limits<int>::max() / 4);
+#if GOOGLE_PROTOBUF_VERSION >= 3011000
+        // Starting Protobuf 3.11 accepts only single parameter.
+        coded_input.SetTotalBytesLimit(std::numeric_limits<int>::max());
+#else
+        // Note: This WARs the very low default size limit (64MB)
+        coded_input.SetTotalBytesLimit(std::numeric_limits<int>::max(), std::numeric_limits<int>::max()/4);
+#endif
         ASSERT( (model->ParseFromCodedStream(&coded_input)) && "Failed to parse the ONNX model.", ErrorCode::kMODEL_DESERIALIZE_FAILED);
     }
     return Status::success();
 }
 
-bool ModelImporter::supportsModel(
-    void const* serialized_onnx_model, size_t serialized_onnx_model_size, SubGraphCollection_t& sub_graph_collection,
-    const char* model_path)
+bool ModelImporter::supportsModel(void const* serialized_onnx_model, size_t serialized_onnx_model_size,
+    SubGraphCollection_t& sub_graph_collection, const char* model_path)
 {
-
     ::ONNX_NAMESPACE::ModelProto model;
     bool is_serialized_as_text = false;
     Status status
@@ -536,6 +545,12 @@ bool ModelImporter::parseWithWeightDescriptors(void const* serialized_onnx_model
 
 bool ModelImporter::parse(void const* serialized_onnx_model, size_t serialized_onnx_model_size, const char* model_path)
 {
+    auto* const ctx = &_importer_ctx;
+    if (ctx->network()->getNbLayers() > 0)
+    {
+        LOG_ERROR("Parse was called with a non-empty network definition");
+        return false;
+    }
     if (model_path)
     {
         _importer_ctx.setOnnxFileLocation(model_path);
@@ -723,7 +738,12 @@ bool ModelImporter::parseFromFile(const char* onnxModelFile, int32_t verbosity)
 
     { //...Read input file, parse it
         std::ifstream onnx_file(onnxModelFile, std::ios::binary | std::ios::ate);
-        const std::streamsize file_size = onnx_file.tellg();
+        auto const file_size = onnx_file.tellg();
+        if (-1 == file_size)
+        {
+            LOG_ERROR("File size error (possibly the path points to a directory): " << onnxModelFile);
+            return false;
+        }
         onnx_file.seekg(0, std::ios::beg);
         std::vector<char> onnx_buf(file_size);
         if (!onnx_file.read(onnx_buf.data(), onnx_buf.size()))

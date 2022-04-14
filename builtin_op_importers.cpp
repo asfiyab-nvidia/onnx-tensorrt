@@ -83,12 +83,23 @@ namespace
     do                                                                                                                 \
     {                                                                                                                  \
         nvinfer1::ILayer* layer_ptr = layer;                                                                           \
-        ASSERT(layer_ptr && "The input layer is null.", ErrorCode::kUNSUPPORTED_NODE);                                                               \
+        ASSERT(layer_ptr && "The input layer is null.", ErrorCode::kUNSUPPORTED_NODE);                                 \
         std::vector<TensorOrWeights> outputs;                                                                          \
         for (int i = 0; i < layer_ptr->getNbOutputs(); ++i)                                                            \
             outputs.push_back(layer_ptr->getOutput(i));                                                                \
         return {outputs};                                                                                              \
     } while (0)
+
+void assertIsWeights(const TensorOrWeights& input, const std::string& specificMsg)
+{
+    if (!input.is_weights())
+    {
+        std::ostringstream msg;
+        msg << specificMsg;
+        msg << " Try applying constant folding on the model using Polygraphy: https://github.com/NVIDIA/TensorRT/tree/master/tools/Polygraphy/examples/cli/surgeon/02_folding_constants";
+        throw std::runtime_error(msg.str());
+    }
+}
 
 bool registerBuiltinOpImporter(std::string op, NodeImporter const& importer)
 {
@@ -260,7 +271,7 @@ DEFINE_BUILTIN_OP_IMPORTER(BatchNormalization)
     }
 
     return scaleHelper(ctx, node, *tensorPtr, nvinfer1::ScaleMode::kCHANNEL, combinedBias, combinedScale,
-        ShapedWeights::empty(scale.type), bias.getName(), scale.getName());
+        ShapedWeights::empty(scale.type), combinedBias.getName(), combinedScale.getName());
 }
 
 DEFINE_BUILTIN_OP_IMPORTER(Cast)
@@ -447,9 +458,7 @@ DEFINE_BUILTIN_OP_IMPORTER(Clip)
     {
         elementwiseClip |= inputs.at(i).is_tensor();
     }
-    std::cout << "is elementwise: " << elementwiseClip << std::endl;
-    // if (elementwiseClip)
-    if (true)
+    if (elementwiseClip)
     {
         auto type = convertToTensor(inputs.at(0), ctx).getType();
         ASSERT((type == nvinfer1::DataType::kFLOAT || type == nvinfer1::DataType::kINT32)
@@ -518,11 +527,6 @@ DEFINE_BUILTIN_OP_IMPORTER(Concat)
     std::vector<nvinfer1::ITensor*> tensors;
     for (auto& input : inputs)
     {
-        // Skip empty concat tensor
-        if (input.shape().nbDims == 0)
-        {
-            continue;
-        }
         auto* tensorPtr = &convertToTensor(input, ctx);
         tensors.push_back(tensorPtr);
     }
@@ -614,9 +618,7 @@ DEFINE_BUILTIN_OP_IMPORTER(Conv)
     {
         if (inputs.size() == 3)
         {
-            ASSERT(
-                inputs.at(2).is_weights() && "The bias tensor is required to be an initializer for the Conv operator",
-                ErrorCode::kUNSUPPORTED_NODE);
+            assertIsWeights(inputs.at(2), "The bias tensor is required to be an initializer for the Conv operator.");
         }
         // Handle Multi-input convolution
         return convMultiInput(ctx, node, inputs);
@@ -652,7 +654,7 @@ DEFINE_BUILTIN_OP_IMPORTER(Conv)
     nvinfer1::Weights bias_weights;
     if (inputs.size() == 3)
     {
-        ASSERT(inputs.at(2).is_weights() && "The bias tensor is required to be an initializer for the Conv operator.", ErrorCode::kUNSUPPORTED_NODE);
+        assertIsWeights(inputs.at(2), "The bias tensor is required to be an initializer for the Conv operator.");
         auto shapedBiasWeights = inputs.at(2).weights();
         // Unsqueeze scalar weights to 1D
         if (shapedBiasWeights.shape.nbDims == 0)
@@ -990,7 +992,7 @@ DEFINE_BUILTIN_OP_IMPORTER(CumSum)
     nvinfer1::ITensor* input = &convertToTensor(inputs.at(0), ctx);
     auto dims = input->getDimensions();
 
-    ASSERT(inputs.at(1).is_weights() && "Axis input for CumSum must be an initializer!", ErrorCode::kUNSUPPORTED_NODE);
+    assertIsWeights(inputs.at(1), "Axis input for CumSum must be an initializer!");
     ShapedWeights axisWeights = inputs.at(1).weights();
     int32_t axis = static_cast<int32_t*>(axisWeights.values)[0];
     CHECK(convertAxis(axis, dims.nbDims));
@@ -1125,10 +1127,15 @@ NodeImportResult QuantDequantLinearHelper(
     IImporterContext* ctx, ::ONNX_NAMESPACE::NodeProto const& node, std::vector<TensorOrWeights>& inputs, bool isDQ)
 {
     auto addConstantLayer
-        = [](nvinfer1::INetworkDefinition& network, const ShapedWeights& weights) -> nvinfer1::ITensor* {
+        = [ctx](nvinfer1::INetworkDefinition& network, const ShapedWeights& weights) -> nvinfer1::ITensor* {
         nvinfer1::IConstantLayer* constLayer = network.addConstant(weights.shape, weights);
+        ctx->registerLayer(constLayer, weights.getName());
         network.setWeightsName(weights, weights.getName());
         return constLayer->getOutput(0);
+    };
+
+    auto newConstantInput = [&](int32_t i) {
+        return inputs.at(i).is_weights() && (ctx->getConstantLayer(inputs.at(i).weights().getName()) == nullptr);
     };
 
     ASSERT((inputs.size() == 3) && "This version of TensorRT requires 3 inputs for the DequantizeLinear operator.",
@@ -1139,9 +1146,8 @@ NodeImportResult QuantDequantLinearHelper(
     nvinfer1::ITensor& dataInput = convertToTensor(inputs.at(0), ctx);
 
     // Input 1 initializes the layer's scale weights.
-    auto scaleIsWeights = inputs.at(1).is_weights();
     nvinfer1::ITensor* scaleInput = nullptr;
-    if (scaleIsWeights)
+    if (newConstantInput(1))
     {
         // Scale is concrete so verify it now.
         auto scale = inputs.at(1).weights();
@@ -1161,9 +1167,8 @@ NodeImportResult QuantDequantLinearHelper(
     const auto scaleSize = volume(scaleInput->getDimensions());
 
     // Input 2 initializes the layer's zero-point.
-    auto zeroPtIsWeights = inputs.at(2).is_weights();
     nvinfer1::ITensor* zeroPointInput = nullptr;
-    if (zeroPtIsWeights)
+    if (newConstantInput(2))
     {
         // Zero-point verification.
         auto zeroPoint = inputs.at(2).weights();
@@ -1217,7 +1222,6 @@ NodeImportResult QuantDequantLinearHelper(
         nvinfer1::IDequantizeLayer* dq = ctx->network()->addDequantize(dataInput, *scaleInput);
         ASSERT(dq && "Failed to create Dequantize layer.", ErrorCode::kUNSUPPORTED_NODE);
         dq->setAxis(axis);
-        nodeName += std::string("_dequantize_scale_node");
         layer = dq;
     }
     else
@@ -1226,7 +1230,6 @@ NodeImportResult QuantDequantLinearHelper(
         nvinfer1::IQuantizeLayer* q = ctx->network()->addQuantize(dataInput, *scaleInput);
         ASSERT(q && "Failed to create Quantize layer.", ErrorCode::kUNSUPPORTED_NODE);
         q->setAxis(axis);
-        nodeName += std::string("_quantize_scale_node");
         layer = q;
     }
 
@@ -1524,44 +1527,12 @@ DEFINE_BUILTIN_OP_IMPORTER(Gemm)
     bool transA = attrs.get("transA", false);
     bool transB = attrs.get("transB", false);
     nvinfer1::ITensor& inputA = convertToTensor(inputs.at(0), ctx);
+    nvinfer1::ITensor& inputB = convertToTensor(inputs.at(1), ctx);
     // Validate inputs
-    ASSERT(inputs.at(0).shape().nbDims == 2 && inputs.at(1).shape().nbDims == 2 && "GEMM must have 2D inputs!", ErrorCode::kINVALID_NODE);
+    ASSERT(inputA.getDimensions().nbDims == 2 && inputB.getDimensions().nbDims == 2 && "GEMM must have 2D inputs!", ErrorCode::kINVALID_NODE);
     // TRT does not support INT32 input types for this node
     ASSERT(!inputs.at(0).isInt32() && !inputs.at(1).isInt32() && "TensorRT doesn't support INT32 inputs for GEMM!",
         ErrorCode::kUNSUPPORTED_NODE);
-
-    nvinfer1::ITensor* inputB{nullptr};
-
-    if (inputs.at(1).is_weights())
-    {
-        ShapedWeights weights = inputs.at(1).weights();
-        nvinfer1::IConstantLayer* weightsLayer
-            = ctx->network()->addConstant(weights.shape, static_cast<nvinfer1::Weights>(weights));
-        // Map the constant layer to the weights name.
-        ctx->registerLayer(weightsLayer, node.input(1));
-        ctx->network()->setWeightsName(weights, weights.getName());
-        inputB = weightsLayer->getOutput(0);
-    }
-    else
-    {
-        inputB = &inputs.at(1).tensor();
-    }
-
-    nvinfer1::ITensor* inputASqueezed = &inputA;
-    nvinfer1::Dims newDims = squeeze_trailing_dims(inputA.getDimensions());
-    // When A has more than 2 dimensions, it needs to be flattened.
-    if (newDims.nbDims > 2)
-    {
-        newDims = nvinfer1::Dims{1, {-1}};
-    }
-    // Due to other TRT layers, inputA may sometimes have trailing 1s that need to be removed.
-    if (newDims.nbDims < inputA.getDimensions().nbDims)
-    {
-        nvinfer1::IShuffleLayer* squeeze = ctx->network()->addShuffle(inputA);
-        squeeze->setReshapeDimensions(newDims);
-        squeeze->setZeroIsPlaceholder(false);
-        inputASqueezed = squeeze->getOutput(0);
-    }
 
     const auto getMatrixOp = [](const nvinfer1::ITensor& input, bool transpose) {
         if (input.getDimensions().nbDims == 1)
@@ -1575,13 +1546,12 @@ DEFINE_BUILTIN_OP_IMPORTER(Gemm)
         return nvinfer1::MatrixOperation::kNONE;
     };
 
-    nvinfer1::MatrixOperation opA = getMatrixOp(*inputASqueezed, transA);
-    nvinfer1::MatrixOperation opB = getMatrixOp(*inputB, transB);
+    nvinfer1::MatrixOperation opA = getMatrixOp(inputA, transA);
+    nvinfer1::MatrixOperation opB = getMatrixOp(inputB, transB);
 
     LOG_VERBOSE("Using opA: " << static_cast<int>(opA) << " opB: " << static_cast<int>(opB));
-    LOG_VERBOSE("GEMM: A, after squeezing: " << inputASqueezed->getDimensions());
 
-    nvinfer1::IMatrixMultiplyLayer* matmul = ctx->network()->addMatrixMultiply(*inputASqueezed, opA, *inputB, opB);
+    nvinfer1::IMatrixMultiplyLayer* matmul = ctx->network()->addMatrixMultiply(inputA, opA, inputB, opB);
     ctx->registerLayer(matmul, getNodeName(node));
     nvinfer1::ITensor* matmulTensor = matmul->getOutput(0);
 
@@ -1613,12 +1583,6 @@ DEFINE_BUILTIN_OP_IMPORTER(Gemm)
                 *betaConstantTensor, *biasTensor, nvinfer1::ElementWiseOperation::kPROD);
             biasTensor = scaledBias->getOutput(0);
         }
-        // A*B may be lower rank than C in TRT, so need to squeeze C.
-        if (ctx->getOpsetVersion() < 7 && !attrs.get("broadcast", false))
-        {
-            nvinfer1::Dims squeezeDims = squeeze_leading_dims(biasTensor->getDimensions());
-            biasTensor = reshapeTensor(ctx, *biasTensor, squeezeDims);
-        }
         CHECK(broadcastTensors(ctx, matmulTensor, biasTensor));
         nvinfer1::IElementWiseLayer* biasAdd
             = ctx->network()->addElementWise(*matmulTensor, *biasTensor, nvinfer1::ElementWiseOperation::kSUM);
@@ -1630,6 +1594,7 @@ DEFINE_BUILTIN_OP_IMPORTER(Gemm)
 
 DEFINE_BUILTIN_OP_IMPORTER(GlobalAveragePool)
 {
+    LOG_VERBOSE("GlobalAveragePool operators are implemented via Reduce layers rather than Pooling layers");
     return {{globalPoolingHelper(ctx, node, convertToTensor(inputs.at(0), ctx), nvinfer1::ReduceOperation::kAVG)}};
 }
 
@@ -1646,7 +1611,7 @@ DEFINE_BUILTIN_OP_IMPORTER(GlobalLpPool)
     nvinfer1::Dims scalarDims{dims.nbDims};
     std::fill(scalarDims.d, scalarDims.d + scalarDims.nbDims, 1);
     auto& pTensor = *addConstantScalar(ctx, p, ::ONNX_NAMESPACE::TensorProto::FLOAT, scalarDims)->getOutput(0);
-    auto& pInvTensor = *addConstantScalar(ctx, 1.f / p, ::ONNX_NAMESPACE::TensorProto::FLOAT, scalarDims)->getOutput(0);
+    auto& pInvTensor = *addConstantScalar(ctx, 1.F / p, ::ONNX_NAMESPACE::TensorProto::FLOAT, scalarDims)->getOutput(0);
 
     // firstPow = pow(x, p)
     auto* firstPow = ctx->network()->addElementWise(tensor, pTensor, nvinfer1::ElementWiseOperation::kPOW)->getOutput(0);
@@ -1660,6 +1625,7 @@ DEFINE_BUILTIN_OP_IMPORTER(GlobalLpPool)
 
 DEFINE_BUILTIN_OP_IMPORTER(GlobalMaxPool)
 {
+    LOG_VERBOSE("GlobalMaxPool operators are implemented via Reduce layers rather than Pooling layers");
     return {{globalPoolingHelper(ctx, node, convertToTensor(inputs.at(0), ctx), nvinfer1::ReduceOperation::kMAX)}};
 }
 
@@ -2092,7 +2058,8 @@ DEFINE_BUILTIN_OP_IMPORTER(If)
     // For constant conditions, parse only the selected subgraph
     if (cond.is_weights() && cond.weights().count() == 1)
     {
-        const auto value = *(static_cast<int*>(cond.weights().values));
+        // Boolean weights are stored as uint8_t
+        auto const value = *(static_cast<uint8_t*>(cond.weights().values));
         const ::ONNX_NAMESPACE::GraphProto& body = value == 1 ? thenGraph : elseGraph;
         CHECK(onnx2trt::parseGraph(ctx, body));
         for (auto i = 0; i < nbOutputs; i++)
@@ -2890,6 +2857,7 @@ DEFINE_BUILTIN_OP_IMPORTER(Mean)
     static_cast<float*>(scale_weights.values)[0] = scale_value;
     auto* constant_layer = ctx->network()->addConstant(scale_weights.shape, scale_weights);
     ASSERT(constant_layer && "Failed to create the scalar tensor.", ErrorCode::kUNSUPPORTED_NODE);
+    ctx->network()->setWeightsName(scale_weights, scale_weights.getName());
     nvinfer1::ITensor& scale_constant = *constant_layer->getOutput(0);
     RETURN_FIRST_OUTPUT(
         ctx->network()->addElementWise(sum_tensor, scale_constant, nvinfer1::ElementWiseOperation::kPROD));
@@ -3248,36 +3216,10 @@ DEFINE_BUILTIN_OP_IMPORTER(RandomUniformLike)
     return randomUniformHelper(ctx, node, inputShape, attrs, dType);
 }
 
-NodeImportResult staticFloatRangeImporter(IImporterContext* ctx, const ::ONNX_NAMESPACE::NodeProto& node, const std::vector<TensorOrWeights>& inputs)
-{
-    const float start = static_cast<float*>(inputs.at(0).weights().values)[0];
-    const float limit = static_cast<float*>(inputs.at(1).weights().values)[0];
-    const float delta = static_cast<float*>(inputs.at(2).weights().values)[0];
-    const float size = std::max(std::ceil((limit - start) / delta), 0.0f);
-    ASSERT(size != 0 && "Zero-sized range operators are not supported!", ErrorCode::kUNSUPPORTED_NODE);
-    ASSERT(size <= std::numeric_limits<int32_t>::max() && "Range operator size must fit in int32!",
-        ErrorCode::kUNSUPPORTED_NODE);
-    nvinfer1::IFillLayer* layer
-        = addFill(ctx, shapeVector(static_cast<int32_t>(size)), nvinfer1::FillOperation::kLINSPACE);
-    ctx->registerLayer(layer, getNodeName(node));
-    layer->setAlpha(start);
-    layer->setBeta(delta);
-    RETURN_FIRST_OUTPUT(layer);
-}
-
 DEFINE_BUILTIN_OP_IMPORTER(Range)
 {
-    if (inputs.at(0).is_weights() && inputs.at(0).weights().type == ::ONNX_NAMESPACE::TensorProto_DataType_FLOAT)
-    {
-        // Floating-point case supported by TensorRT only if all inputs are static.
-        if (inputs.at(0).is_weights() && inputs.at(1).is_weights() && inputs.at(2).is_weights())
-        {
-            return staticFloatRangeImporter(ctx, node, inputs);
-        }
-    }
-
     ASSERT((inputs.at(0).isInt32() || inputs.at(0).isFp32())
-            && "For range operator with dynamic inputs, this version of TensorRT only supports int32 and float types!",
+            && "This version of TensorRT only supports int32 and float input types for Range!",
         ErrorCode::kUNSUPPORTED_NODE);
 
     // "start : T
@@ -3313,8 +3255,12 @@ DEFINE_BUILTIN_OP_IMPORTER(Range)
     {
         layer->setAlpha(start[0]);
         layer->setBeta(delta[0]);
-        // Set layer output type to INT32 for statically-known ranges.
-        layer->setOutputType(0, nvinfer1::DataType::kINT32);
+        if (!start.isFloat())
+        {
+            // Set output type to INT32 for ranges that should be INT32, since TRT only accepts
+            // double type for setAlpha and setBeta
+            layer->setOutputType(0, nvinfer1::DataType::kINT32);
+        }
     }
     else
     {
@@ -4161,7 +4107,11 @@ DEFINE_BUILTIN_OP_IMPORTER(Slice)
     decodeOnnxStartsAndEnds(ctx, dims, steps, starts, ends);
 
     // TensorRT uses sizes of the output dimensions instead of ends.
-    const ShapeTensor sizes = computeSliceSizes(ctx, starts, ends, steps, dims);
+    ShapeTensor sizes = computeSliceSizes(ctx, starts, ends, steps, dims);
+
+    // Negative sizes signifies an empty slice, so clamp sizes to 0
+    const ShapeTensor zeros = similar(ctx, dims, 0);
+    sizes = max(ctx, zeros, sizes);
 
     nvinfer1::ISliceLayer* slice = addSlice(ctx, data, starts, sizes, steps);
 
@@ -4354,7 +4304,7 @@ DEFINE_BUILTIN_OP_IMPORTER(Squeeze)
     {
         if (inputs.size() == 2)
         {
-            ASSERT(inputs.at(1).is_weights() && "Unsqueeze axes input must an initializer!", ErrorCode::kUNSUPPORTED_NODE);
+            assertIsWeights(inputs.at(1), "Squeeze axes input must be an initializer!");
             // Map weights value to axes
             auto axesWeights = inputs.at(1).weights();
             int32_t* axesValues = static_cast<int32_t*>(axesWeights.values);
@@ -4461,8 +4411,9 @@ DEFINE_BUILTIN_OP_IMPORTER(TopK)
     // Don't support TopK with k as a tensor
     if (ctx->getOpsetVersion() >= 10)
     {
-        ASSERT( (inputs.at(1).is_weights()) && "This version of TensorRT only supports input K as an initializer.", ErrorCode::kUNSUPPORTED_NODE);
-        ASSERT( (inputs.at(1).weights().count() == 1) && "The input K must contain exactly 1 value.", ErrorCode::kUNSUPPORTED_NODE);
+        assertIsWeights(inputs.at(1), "This version of TensorRT only supports input K as an initializer.");
+        ASSERT((inputs.at(1).weights().count() == 1) && "The input K must contain exactly 1 value.",
+            ErrorCode::kUNSUPPORTED_NODE);
         k = *static_cast<int*>(inputs.at(1).weights().values);
     }
     else
@@ -4516,22 +4467,10 @@ DEFINE_BUILTIN_OP_IMPORTER(Transpose)
         default_perm.order[i] = ndim - 1 - i;
     }
     nvinfer1::Permutation perm = attrs.get("perm", default_perm);
-    if (input.is_tensor() || (input.is_weights() && ndim == 2))
-    {
-        nvinfer1::ITensor& itensor = input.is_tensor() ? input.tensor() : convertToTensor(input, ctx);
-        nvinfer1::ITensor* output_tensor = transposeTensor(ctx, node, itensor, perm);
-        ASSERT(output_tensor && "Failed to transpose the input.", ErrorCode::kUNSUPPORTED_NODE);
-        return {{output_tensor}};
-    }
-    else
-    {
-        auto weights = input.weights();
-        auto new_weights = ctx->createTempWeights(weights.type, weights.shape);
-        ASSERT(transposeWeights(weights, perm, &new_weights, ctx) && "Failed to transpose the input.", ErrorCode::kUNSUPPORTED_NODE);
-        weights = new_weights;
-
-        return {{weights}};
-    }
+    nvinfer1::ITensor& itensor = input.is_tensor() ? input.tensor() : convertToTensor(input, ctx);
+    nvinfer1::ITensor* output_tensor = transposeTensor(ctx, node, itensor, perm);
+    ASSERT(output_tensor && "Failed to transpose the input.", ErrorCode::kUNSUPPORTED_NODE);
+    return {{output_tensor}};
 }
 
 DEFINE_BUILTIN_OP_IMPORTER(Unsqueeze)
@@ -4683,8 +4622,8 @@ DEFINE_BUILTIN_OP_IMPORTER(Where)
     nvinfer1::ITensor* x = &convertToTensor(inputs.at(1), ctx);
     nvinfer1::ITensor* y = &convertToTensor(inputs.at(2), ctx);
     // TRT does not support BOOL input types for this node
-    ASSERT((x->getType() == y->getType() && x->getType() != nvinfer1::DataType::kBOOL)
-            && "This version of TensorRT requires input x and y to have the same data type. BOOL is unsupported.",
+    ASSERT((x->getType() != nvinfer1::DataType::kBOOL && y->getType() != nvinfer1::DataType::kBOOL)
+            && "This version of TensorRT does not support BOOL types for Where operators.",
         ErrorCode::kUNSUPPORTED_NODE);
 
     CHECK(broadcastTensors(ctx, x, y, condition));
@@ -4969,7 +4908,7 @@ DEFINE_BUILTIN_OP_IMPORTER(TRT_Scale)
 
     nvinfer1::ScaleMode mode = attrs.get<nvinfer1::ScaleMode>("mode");
 
-    // check if there's no weigths at all
+    // check if there's no weights at all
     // if no weights, just choose datatype of the input tensor
     // This is based on the assumption that weights should be
     // the same datatype as inputs

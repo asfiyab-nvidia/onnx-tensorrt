@@ -101,7 +101,9 @@ inline nvinfer1::IConstantLayer* addConstantScalar(
     assert(volume(shape) == 1 && "Cannot add constant scalar with a shape that has volume > 1");
     ShapedWeights scalarWeights = ctx->createTempWeights(type, shape);
     static_cast<ScalarType*>(scalarWeights.values)[0] = static_cast<ScalarType>(scalar);
-    return ctx->network()->addConstant(scalarWeights.shape, scalarWeights);
+    nvinfer1::IConstantLayer* l = ctx->network()->addConstant(scalarWeights.shape, scalarWeights);
+    ctx->network()->setWeightsName(scalarWeights, scalarWeights.getName());
+    return l;
 }
 
 // Helper function to create a tensor given a vector of values and a shape.
@@ -113,7 +115,9 @@ inline nvinfer1::IConstantLayer* addConstant(
     assert(sizeof(ScalarType) == getDtypeSize(type) && "ONNX dtype does not have the same size as the value type");
     ShapedWeights weights = ctx->createTempWeights(type, shape);
     std::memcpy(weights.values, values.data(), values.size() * sizeof(ScalarType));
-    return ctx->network()->addConstant(weights.shape, weights);
+    nvinfer1::IConstantLayer* l = ctx->network()->addConstant(weights.shape, weights);
+    ctx->network()->setWeightsName(weights, weights.getName());
+    return l;
 }
 
 enum ScaleOp
@@ -256,9 +260,6 @@ nvinfer1::ITensor* globalPoolingHelper(IImporterContext* ctx, ::ONNX_NAMESPACE::
 
 // Helper function to determine if a shape contains dynamic dimensions
 bool isDynamic(const nvinfer1::Dims& shape);
-
-// Helper function to determine if a ONNX tensor is empty
-bool isOnnxTensorEmpty(const ::ONNX_NAMESPACE::TensorProto& onnxTensor);
 
 // Helper function to load a creator from the registry
 nvinfer1::IPluginCreator* importPluginCreator(

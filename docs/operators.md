@@ -178,4 +178,4 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | Unsqueeze                 | Y          | FP32, FP16, INT32, INT8, BOOL | `axes` must be a constant tensor                                                                                                         |
 | Upsample                  | Y          | FP32, FP16 |
 | Where                     | Y          | FP32, FP16, INT32, BOOL |
-| Xor                       | N          |
+| Xor                       | Y          | BOOL

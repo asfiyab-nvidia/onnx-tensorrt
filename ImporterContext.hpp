@@ -9,6 +9,7 @@
 #include "onnxErrorRecorder.hpp"
 #include "onnx/common/stl_backports.h"
 #include <list>
+#include <string>
 #include <unordered_map>
 
 namespace onnx2trt
@@ -139,7 +140,7 @@ public:
     void registerTensor(TensorOrWeights tensor, const std::string& basename) override
     {
         // TRT requires unique tensor names.
-        const std::string uniqueName = generateUniqueName(mTensorNames, basename);
+        std::string const& uniqueName = generateUniqueName(mTensorNames, basename);
 
         if (tensor)
         {
@@ -172,8 +173,8 @@ public:
         // No layer will be added for Constant nodes in ONNX.
         if (layer)
         {
-            const std::string name = basename.empty() ? layer->getName() : basename;
-            const std::string uniqueName = generateUniqueName(mLayerNames, name);
+            std::string const name = basename.empty() ? layer->getName() : basename;
+            std::string const& uniqueName = generateUniqueName(mLayerNames, name);
 
             auto* ctx = this; // To enable logging.
             LOG_VERBOSE("Registering layer: " << uniqueName << " for ONNX node: " << basename);
@@ -198,16 +199,10 @@ public:
 
     ShapedWeights createTempWeights(ShapedWeights::DataType type, nvinfer1::Dims shape, uint8_t value = 0) override
     {
+        std::string const& name = generateUniqueName(mTensorNames, "tmp_weight");
         ShapedWeights weights(type, nullptr, shape);
-        // Need special logic for handling scalars.
-        if (shape.nbDims == 0)
-        {
-            mTempBufs.push_back(std::vector<uint8_t>(getDtypeSize(type), value));
-        }
-        else
-        {
-            mTempBufs.push_back(std::vector<uint8_t>(weights.size_bytes(), value));
-        }
+        weights.setName(name.c_str());
+        mTempBufs.push_back(std::vector<uint8_t>(weights.size_bytes(), value));
         weights.values = mTempBufs.back().data();
         return weights;
     }
@@ -266,8 +261,13 @@ public:
         {
             return mOpsets.begin()->second;
         }
+        else if (mOpsets.count(domain))
+        {
+            return mOpsets.at(domain);
+        }
         else
         {
+            domain = "ai.onnx";
             assert(mOpsets.count(domain));
             return mOpsets.at(domain);
         }
@@ -296,7 +296,7 @@ public:
     }
 
 private:
-    std::string generateUniqueName(std::set<std::string>& namesSet, const std::string& basename)
+    std::string const& generateUniqueName(std::set<std::string>& namesSet, const std::string& basename)
     {
         std::string candidate = basename;
 
@@ -307,8 +307,8 @@ private:
         }
 
         namesSet.insert(candidate);
-
-        return candidate;
+        // Return reference to newly inserted string to avoid any c_str()'s going out of scope
+        return *namesSet.find(candidate);
     }
 };
 
