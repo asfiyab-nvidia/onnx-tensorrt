@@ -410,8 +410,25 @@ ShapeTensor axesToInterlaceSubscripts(const ShapeTensor& axes, int nbDims);
 //! Helper function to add SoftMax layer.
 nvinfer1::ITensor* addSoftmax(IImporterContext* ctx, const ::ONNX_NAMESPACE::NodeProto& node, nvinfer1::ITensor& input);
 
-// Helper function to import ONNX scatter nodes into TRT
+//! Helper function to import ONNX scatter nodes into TRT
 NodeImportResult addScatterLayer(
     IImporterContext* ctx, const ::ONNX_NAMESPACE::NodeProto& node, std::vector<TensorOrWeights>& inputs, nvinfer1::ScatterMode mode, int32_t axis = 0);
+
+//! RAII wrapper for IImporterContext::pushBaseNameScope() and popBaseNameScope().
+class NameScope
+{
+public:
+    NameScope(IImporterContext& context)
+        : mContext(context)
+    {
+        mContext.pushBaseNameScope();
+    }
+    ~NameScope()
+    {
+        mContext.popBaseNameScope();
+    }
+private:
+    IImporterContext& mContext;
+};
 
 } // namespace onnx2trt
