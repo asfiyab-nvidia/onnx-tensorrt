@@ -344,21 +344,18 @@ DEFINE_BUILTIN_OP_IMPORTER(Celu)
     combined = uLayer->getOutput(0);
     inputTensors.push_back(combined);
 
-
-    std::vector<eOpInstuctor> operations {
+    std::vector<eOpInstuctor> operations{
         // max(0,x) -> 5
         eOpInstuctor(0, 1, eOp::kMAX),
         // (exp(x/alpha)-1)) -> 6
         eOpInstuctor(4, 2, eOp::kSUB),
         // alpha*(exp(x/alpha)-1) -> 7
-        eOpInstuctor(3, 6, eOp::kPOW),
+        eOpInstuctor(3, 6, eOp::kPROD),
         // min(0,alpha*(exp(x/alpha)-1)) -> 8
         eOpInstuctor(1, 7, eOp::kMIN),
         // max(0,x) + min(0,alpha*(exp(x/alpha)-1)) -> 9
         eOpInstuctor(5, 8, eOp::kSUM),
     };
-
-
 
     for (auto it : operations)
     {
