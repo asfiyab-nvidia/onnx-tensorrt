@@ -76,6 +76,10 @@ Status importSubgraph(
 {
     auto net = ctx->network();
     int32_t beforeSubgraph = net->getNbLayers();
+
+    // Establish scope for names local to the subgraph.
+    NameScope nameScope(*ctx);
+
     CHECK(onnx2trt::parseGraph(ctx, subgraph));
 
     for (int32_t i = beforeSubgraph; i < net->getNbLayers(); i++)

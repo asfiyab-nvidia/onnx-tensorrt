@@ -12,6 +12,7 @@
 #include "OnnxAttrs.hpp"
 #include "RNNHelpers.hpp"
 #include "ShapeTensor.hpp"
+#include "half.h"
 #include "onnx2trt_utils.hpp"
 
 #include <algorithm> // For std::min, std::max
@@ -2061,6 +2062,10 @@ DEFINE_BUILTIN_OP_IMPORTER(If)
         // Boolean weights are stored as uint8_t
         auto const value = *(static_cast<uint8_t*>(cond.weights().values));
         const ::ONNX_NAMESPACE::GraphProto& body = value == 1 ? thenGraph : elseGraph;
+
+        // Establish scope for names local to the subgraph.
+        NameScope nameScope(*ctx);
+
         CHECK(onnx2trt::parseGraph(ctx, body));
         for (auto i = 0; i < nbOutputs; i++)
         {
@@ -2245,6 +2250,10 @@ DEFINE_BUILTIN_OP_IMPORTER(Loop)
 
     auto loop = ctx->network()->addLoop();
     loop->setName(getNodeName(node).c_str());
+
+    // Establish scope for names local to the subgraph.
+    NameScope nameScope(*ctx);
+
     // Trip count and condition are optional inputs.
     nvinfer1::ITensor* tripLimit{nullptr};
     if (inputs[0])
@@ -2999,14 +3008,28 @@ DEFINE_BUILTIN_OP_IMPORTER(Pad)
         }
         if (inputs.size() == 3)
         {
+            bool isValueSet = false;
             if (inputs.at(2).is_weights())
             {
-                const auto padWeight = inputs.at(2).weights();
+                auto const padWeight = inputs.at(2).weights();
                 ASSERT((padWeight.count() == 1) && "The input constant_value is required to be a scalar.",
                     ErrorCode::kINVALID_NODE);
-                value = static_cast<const float*>(padWeight.values)[0];
+                switch (padWeight.type)
+                {
+                case ::ONNX_NAMESPACE::TensorProto::FLOAT:
+                    value = static_cast<float const*>(padWeight.values)[0];
+                    isValueSet = true;
+                    break;
+                case ::ONNX_NAMESPACE::TensorProto::FLOAT16:
+                    value = float(reinterpret_cast<half_float::half const*>(padWeight.values)[0]);
+                    isValueSet = true;
+                    break;
+                default:
+                    // we use trt constant layer to do the data type convertion
+                    break;
+                }
             }
-            else
+            if (!isValueSet)
             {
                 valuePtr = &convertToTensor(inputs.at(2), ctx);
             }
@@ -3088,15 +3111,14 @@ DEFINE_BUILTIN_OP_IMPORTER(Pad)
             case nvinfer1::DataType::kFLOAT:
             case nvinfer1::DataType::kHALF:
             case nvinfer1::DataType::kINT8:
-                fillValue = addConstant(ctx, std::vector<float>{value}, ::ONNX_NAMESPACE::TensorProto::FLOAT,
-                    nvinfer1::Dims{
-                        0, {0}})->getOutput(0);
+                fillValue = addConstant(
+                    ctx, std::vector<float>{value}, ::ONNX_NAMESPACE::TensorProto::FLOAT, nvinfer1::Dims{0, {0}})
+                                ->getOutput(0);
                 break;
             default:
                 fillValue = addConstant(ctx, std::vector<int32_t>{static_cast<int32_t>(value)},
-                    ::ONNX_NAMESPACE::TensorProto::INT32,
-                    nvinfer1::Dims{
-                        0, {0}})->getOutput(0);
+                    ::ONNX_NAMESPACE::TensorProto::INT32, nvinfer1::Dims{0, {0}})
+                                ->getOutput(0);
                 break;
             }
             ASSERT(fillValue && "Could not create layer for constant_value", ErrorCode::kUNSUPPORTED_NODE);
@@ -3900,6 +3922,9 @@ DEFINE_BUILTIN_OP_IMPORTER(Scan)
     // to use only one scan input to determine trip limit.
     nvinfer1::ITensor* tripLimit = getAxisLength(ctx, &convertToTensor(inputs.back(), ctx), scanInputAxes.back());
     loop->addTripLimit(*tripLimit, nvinfer1::TripLimit::kCOUNT);
+
+    // Establish scope for names local to the subgraph.
+    NameScope nameScope(*ctx);
 
     // Add initial state inputs using recurrent layers, and scan inputs using iterators.
     std::vector<nvinfer1::IRecurrenceLayer*> stateVars{};

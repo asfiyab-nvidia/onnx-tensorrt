@@ -15,6 +15,7 @@
 #include <limits>
 #include <functional>
 #include <unordered_set>
+#include <sys/stat.h>
 
 namespace onnx2trt
 {
@@ -510,7 +511,8 @@ bool ModelImporter::supportsOperator(const char* op_name) const
     {
         return false;
     }
-    if (is("EfficientNMS_TRT") || is("PyramidROIAlign_TRT") || is("MultilevelCropAndResize_TRT"))
+    if (is("EfficientNMS_TRT") || is("PyramidROIAlign_TRT") || is("MultilevelCropAndResize_TRT")
+        || is("DisentangledAttention_TRT"))
     {
         return true;
     }
@@ -710,9 +712,22 @@ Status ModelImporter::importModel(
 
 bool ModelImporter::parseFromFile(const char* onnxModelFile, int32_t verbosity)
 {
+    auto* ctx = &_importer_ctx;
+    
+    // Define S_ISREG macro for Windows
+#if !defined(S_ISREG)
+# define S_ISREG(mode) (((mode) & S_IFMT) == S_IFREG)
+#endif
+    
+    struct stat sb;
+    if (stat(onnxModelFile, &sb) == 0 && !S_ISREG(sb.st_mode))
+    {
+	LOG_ERROR("Input is not a regular file: " << onnxModelFile);
+	return false;
+    }
+
     GOOGLE_PROTOBUF_VERIFY_VERSION;
     ::ONNX_NAMESPACE::ModelProto onnx_model;
-    auto* ctx = &_importer_ctx;
 
     const bool is_binary = ParseFromFile_WAR(&onnx_model, onnxModelFile);
     if (!is_binary && !ParseFromTextFile(&onnx_model, onnxModelFile))
@@ -739,11 +754,6 @@ bool ModelImporter::parseFromFile(const char* onnxModelFile, int32_t verbosity)
     { //...Read input file, parse it
         std::ifstream onnx_file(onnxModelFile, std::ios::binary | std::ios::ate);
         auto const file_size = onnx_file.tellg();
-        if (-1 == file_size)
-        {
-            LOG_ERROR("File size error (possibly the path points to a directory): " << onnxModelFile);
-            return false;
-        }
         onnx_file.seekg(0, std::ios::beg);
         std::vector<char> onnx_buf(file_size);
         if (!onnx_file.read(onnx_buf.data(), onnx_buf.size()))
