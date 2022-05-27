@@ -47,7 +47,7 @@ Current supported ONNX operators are found in the [operator support matrix](docs
 
 ### Dependencies
 
- - [Protobuf >= 3.0.x](https://github.com/google/protobuf/releases)
+ - [Protobuf >= 3.0.x; <= 3.11.x](https://github.com/google/protobuf/releases)
  - [TensorRT 8.2.5.1](https://developer.nvidia.com/tensorrt)
  - [TensorRT 8.2.5.1 open source libaries (master branch)](https://github.com/NVIDIA/TensorRT/)
 
