@@ -1554,6 +1554,11 @@ bool parseExternalWeights(IImporterContext* ctx, std::string file, std::string p
     // The weight paths in the ONNX model are relative paths to the main ONNX file.
 #ifdef _MSC_VER
     size_t slash = path.rfind("\\");
+    // When using WSL path can have "\" or "/". Need to check both options here.
+    if (slash == std::string::npos)
+    {
+        slash = path.rfind("/");
+    }
 #else
     size_t slash = path.rfind("/");
 #endif

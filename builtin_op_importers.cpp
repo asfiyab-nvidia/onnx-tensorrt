@@ -357,21 +357,18 @@ DEFINE_BUILTIN_OP_IMPORTER(Celu)
     combined = uLayer->getOutput(0);
     inputTensors.push_back(combined);
 
-
-    std::vector<eOpInstuctor> operations {
+    std::vector<eOpInstuctor> operations{
         // max(0,x) -> 5
         eOpInstuctor(0, 1, eOp::kMAX),
         // (exp(x/alpha)-1)) -> 6
         eOpInstuctor(4, 2, eOp::kSUB),
         // alpha*(exp(x/alpha)-1) -> 7
-        eOpInstuctor(3, 6, eOp::kPOW),
+        eOpInstuctor(3, 6, eOp::kPROD),
         // min(0,alpha*(exp(x/alpha)-1)) -> 8
         eOpInstuctor(1, 7, eOp::kMIN),
         // max(0,x) + min(0,alpha*(exp(x/alpha)-1)) -> 9
         eOpInstuctor(5, 8, eOp::kSUM),
     };
-
-
 
     for (auto it : operations)
     {
@@ -2087,22 +2084,17 @@ DEFINE_BUILTIN_OP_IMPORTER(If)
     conditional->setCondition(*condTensor);
 
     std::vector<nvinfer1::ILayer*> thenLayers, elseLayers;
-    CHECK(importSubgraph(ctx, thenGraph, thenLayers));
-    CHECK(importSubgraph(ctx, elseGraph, elseLayers));
-
-    // Names must be unique
-    for (auto i = 0; i < nbOutputs; i++)
-    {
-        const auto thenName = thenGraph.output(i).name();
-        const auto elseName = elseGraph.output(i).name();
-        ASSERT(thenName != elseName && "TensorRT requires conditional subgraphs to have different output tensor names!", ErrorCode::kUNSUPPORTED_NODE);
-    }
+    StringMap<TensorOrWeights> thenSubgraphTensors;
+    StringMap<TensorOrWeights> elseSubgraphTensors;
+    CHECK(importSubgraph(ctx, thenGraph, thenLayers, thenSubgraphTensors));
+    CHECK(importSubgraph(ctx, elseGraph, elseLayers, elseSubgraphTensors));
 
     using InputsMap = std::unordered_map<std::string, nvinfer1::IIfConditionalInputLayer*>;
     InputsMap inputsMap;
     CHECK(addIfInputLayers(ctx, conditional, inputsMap, thenLayers));
     CHECK(addIfInputLayers(ctx, conditional, inputsMap, elseLayers));
-    CHECK(addIfOutputLayers(ctx, conditional, thenGraph, thenLayers, elseGraph, elseLayers, graphOutputs));
+    CHECK(addIfOutputLayers(ctx, conditional, thenGraph, thenLayers, thenSubgraphTensors, elseGraph, elseLayers,
+        elseSubgraphTensors, graphOutputs));
 
     return {graphOutputs};
 }
