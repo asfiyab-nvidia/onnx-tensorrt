@@ -113,12 +113,7 @@ endif()
 # Importer library
 # --------------------------------
 add_library(nvonnxparser SHARED ${IMPORTER_SOURCES})
-SET(OPTIMIZER_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/third_party/optimizer")
-MESSAGE(STATUS "-------ONNX_INCLUDE_DIRS - ${ONNX_INCLUDE_DIRS}")
-MESSAGE(STATUS "-------PROJECT_SOURCE_DIR - ${PROJECT_SOURCE_DIR}")
-MESSAGE(STATUS "-------OPTIMIZER_INCLUDE_DIR - ${OPTIMIZER_INCLUDE_DIR}")
-
-target_include_directories(nvonnxparser PUBLIC ${ONNX_INCLUDE_DIRS} ${OPTIMIZER_INCLUDE_DIR} ${TENSORRT_INCLUDE_DIR} ${CUDA_INCLUDE_DIR})
+target_include_directories(nvonnxparser PUBLIC ${ONNX_INCLUDE_DIRS} ${TENSORRT_INCLUDE_DIR} ${CUDA_INCLUDE_DIR})
 target_link_libraries(nvonnxparser PUBLIC onnx_proto ${PROTOBUF_LIBRARY} ${TENSORRT_LIBRARY})
 set_target_properties(nvonnxparser PROPERTIES
   VERSION   ${ONNX2TRT_VERSION}
@@ -127,7 +122,7 @@ set_target_properties(nvonnxparser PROPERTIES
   LINK_FLAGS "-Wl,--version-script=${PARSER_LINKER_SCRIPT}"
 )
 add_library(nvonnxparser_static STATIC ${IMPORTER_SOURCES})
-target_include_directories(nvonnxparser_static PUBLIC ${ONNX_INCLUDE_DIRS} ${OPTIMIZER_INCLUDE_DIR} ${TENSORRT_INCLUDE_DIR} ${CUDA_INCLUDE_DIR})
+target_include_directories(nvonnxparser_static PUBLIC ${ONNX_INCLUDE_DIRS} ${TENSORRT_INCLUDE_DIR} ${CUDA_INCLUDE_DIR})
 target_link_libraries(nvonnxparser_static PUBLIC onnx_proto ${PROTOBUF_LIBRARY} ${TENSORRT_LIBRARY})
 
 # --------------------------------
@@ -135,7 +130,7 @@ target_link_libraries(nvonnxparser_static PUBLIC onnx_proto ${PROTOBUF_LIBRARY} 
 # --------------------------------
 if(BUILD_ONNXIFI)
   add_library(trt_onnxify SHARED ${ONNXIFI_SOURCES})
-  target_include_directories(trt_onnxify PUBLIC ${CUDA_INCLUDE_DIR} ${ONNX_INCLUDE_DIRS} ${OPTIMIZER_INCLUDE_DIR} ${TENSORRT_INCLUDE_DIR})
+  target_include_directories(trt_onnxify PUBLIC ${CUDA_INCLUDE_DIR} ${ONNX_INCLUDE_DIRS} ${TENSORRT_INCLUDE_DIR})
   target_link_libraries(trt_onnxify PUBLIC nvonnxparser_static ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS})
 endif()
 
@@ -144,7 +139,7 @@ endif()
 # --------------------------------
 if (NOT DEFINED BUILD_LIBRARY_ONLY)
   add_executable(onnx2trt ${EXECUTABLE_SOURCES})
-  target_include_directories(onnx2trt PUBLIC ${ONNX_INCLUDE_DIRS} ${OPTIMIZER_INCLUDE_DIR})
+  target_include_directories(onnx2trt PUBLIC ${ONNX_INCLUDE_DIRS})
   target_link_libraries(onnx2trt PUBLIC ${PROTOBUF_LIB} onnx nvonnxparser_static ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS}) #${CUDA_LIBRARIES}
 endif()
 
@@ -153,7 +148,7 @@ endif()
 # --------------------------------
 if (NOT DEFINED BUILD_LIBRARY_ONLY)
   add_executable(getSupportedAPITest ${API_TESTS_SOURCES})
-  target_include_directories(getSupportedAPITest PUBLIC ${ONNX_INCLUDE_DIRS} ${OPTIMIZER_INCLUDE_DIR} ${CUDNN_INCLUDE_DIR})
+  target_include_directories(getSupportedAPITest PUBLIC ${ONNX_INCLUDE_DIRS} ${CUDNN_INCLUDE_DIR})
   target_link_libraries(getSupportedAPITest PUBLIC ${PROTOBUF_LIB} nvonnxparser_static ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS}) #${CUDA_LIBRARIES}
 endif()
 
