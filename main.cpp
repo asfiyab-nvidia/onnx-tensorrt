@@ -5,7 +5,7 @@
 #include "NvOnnxParser.h"
 #include "onnx_utils.hpp"
 #include "common.hpp"
-#include <onnx/optimizer/optimize.h>
+#include <onnxoptimizer/optimize.h>
 
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
