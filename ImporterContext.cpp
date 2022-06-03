@@ -47,7 +47,16 @@ void ImporterContext::registerTensor(TensorOrWeights tensor, std::string const& 
                 tensor = ShapedWeights{::ONNX_NAMESPACE::TensorProto::INT32,
                     convertINT64(reinterpret_cast<int64_t*>(weights.values), weights.shape, this), weights.shape};
             }
-            tensor.weights().setName(basename.c_str());
+            // It may be possible for nested subgraphs to have different values for the same initializer.
+            // For multiple name scopes - use unique name to keep track of weights. 
+            if (!mBaseNameScopeStack.empty())
+            {
+                tensor.weights().setName(uniqueName.c_str());
+            }
+            else
+            {
+                tensor.weights().setName(basename.c_str());
+            }
         }
     }
 
