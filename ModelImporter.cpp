@@ -381,6 +381,10 @@ Status deserialize_onnx_model(int fd, bool is_serialized_as_text, ::ONNX_NAMESPA
     else
     {
         google::protobuf::io::CodedInputStream coded_input(&raw_input);
+      #if GOOGLE_PROTOBUF_VERSION >= 3011000
+        // Starting Protobuf 3.11 accepts only single parameter.
+        coded_input.SetTotalBytesLimit(std::numeric_limits<int>::max());
+      #else
         // Note: This WARs the very low default size limit (64MB)
 #if GOOGLE_PROTOBUF_VERSION >= 3011000
         // Starting Protobuf 3.11 accepts only single parameter.
