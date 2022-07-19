@@ -3542,7 +3542,7 @@ DEFINE_BUILTIN_OP_IMPORTER(Reshape)
     if (ctx->getOpsetVersion() >= 14)
     {
         OnnxAttrs attrs{node, ctx};
-        allowZero = attrs.get<int>("allowzero");
+        allowZero = attrs.get<int32_t>("allowzero", 0);
     }
 
     ShapeTensor shape;
