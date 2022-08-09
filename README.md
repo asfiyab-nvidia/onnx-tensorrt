@@ -88,7 +88,7 @@ Refer to the link or run `polygraphy run -h` for more information on CLI options
 
 **NOTE: the `onnx2trt` executable is marked for deprecation, and will be removed in the next TensorRT release. It is no longer built by default with the library.**
 
-In order to build this binary, the following prerequites are needed:
+In order to build this binary, the following prerequisites are needed:
 
     1. Downgraded ONNX version (checkout v1.8.0 tag in `third_party/onnx`)
     2. Ensure protobuf version is <= 3.11.x
