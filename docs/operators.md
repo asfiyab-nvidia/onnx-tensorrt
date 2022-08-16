@@ -130,7 +130,7 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | RandomUniform             | Y          | FP32, FP16 | `seed` value is ignored by TensorRT
 | RandomUniformLike         | Y          | FP32, FP16 | `seed` value is ignored by TensorRT
 | Range                     | Y          | FP32, FP16, INT32 |
-| Reciprocal                | N          |
+| Reciprocal                | Y          | FP32, FP16 |
 | ReduceL1                  | Y          | FP32, FP16 |
 | ReduceL2                  | Y          | FP32, FP16 |
 | ReduceLogSum              | Y          | FP32, FP16 |
