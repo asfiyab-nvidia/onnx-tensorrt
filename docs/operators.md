@@ -2,7 +2,7 @@
 
 # Supported ONNX Operators
 
-TensorRT 8.4 supports operators up to Opset 17. Latest information of ONNX operators can be found [here](https://github.com/onnx/onnx/blob/master/docs/Operators.md)
+TensorRT 8.5 supports operators up to Opset 17. Latest information of ONNX operators can be found [here](https://github.com/onnx/onnx/blob/master/docs/Operators.md)
 
 TensorRT supports the following ONNX data types: DOUBLE, FLOAT32, FLOAT16, INT8, and BOOL
 
@@ -18,7 +18,7 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | Acos                      | Y          | FP32, FP16 |
 | Acosh                     | Y          | FP32, FP16 |
 | Add                       | Y          | FP32, FP16, INT32 |
-| And                       | Y          | BOOL | 
+| And                       | Y          | BOOL |
 | ArgMax                    | Y          | FP32, FP16 |
 | ArgMin                    | Y          | FP32, FP16 |
 | Asin                      | Y          | FP32, FP16 |
@@ -61,9 +61,9 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | EyeLike                   | Y          | FP32, FP16, INT32, BOOL |
 | Flatten                   | Y          | FP32, FP16, INT32, BOOL |
 | Floor                     | Y          | FP32, FP16 |
-| Gather                    | Y          | FP32, FP16, INT8, INT32 |
-| GatherElements            | Y          | FP32, FP16, INT8, INT32 |
-| GatherND                  | Y          | FP32, FP16, INT8, INT32 |
+| Gather                    | Y          | FP32, FP16, INT8, INT32, BOOL |
+| GatherElements            | Y          | FP32, FP16, INT8, INT32, BOOL |
+| GatherND                  | Y          | FP32, FP16, INT8, INT32, BOOL |
 | Gemm                      | Y          | FP32, FP16, INT8 |
 | GlobalAveragePool         | Y          | FP32, FP16, INT8 |
 | GlobalLpPool              | Y          | FP32, FP16, INT8 |
@@ -76,7 +76,6 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | HannWindow                | N          |
 | HardSwish                 | N          |
 | HardSigmoid               | Y          | FP32, FP16, INT8 |
-| HardSwish                 | Y          | FP32, FP16 |
 | Hardmax                   | N          |
 | Identity                  | Y          | FP32, FP16, INT32, INT8, BOOL |
 | If                        | Y          | FP32, FP16, INT32, BOOL | Output tensors of the two conditional branches must have broadcastable shapes, and must have different names
@@ -110,8 +109,8 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | Multinomial               | N          |
 | Neg                       | Y          | FP32, FP16, INT32 |
 | NegativeLogLikelihoodLoss | N          |
-| NonMaxSuppression         | Y [EXPERIMENTAL] | FP32, FP16 | Inputs `max_output_boxes_per_class`, `iou_threshold`, and `score_threshold` must be initializers. Output has fixed shape and is padded to [`max_output_boxes_per_class`, 3].
-| NonZero                   | N          |
+| NonMaxSuppression         | Y          | FP32, FP16 |
+| NonZero                   | Y          |
 | Not                       | Y          | BOOL |
 | OneHot                    | N          |
 | Optional                  | N          |
@@ -130,7 +129,7 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | RandomUniform             | Y          | FP32, FP16 | `seed` value is ignored by TensorRT
 | RandomUniformLike         | Y          | FP32, FP16 | `seed` value is ignored by TensorRT
 | Range                     | Y          | FP32, FP16, INT32 |
-| Reciprocal                | Y          | FP32, FP16 |
+| Reciprocal                | N          |
 | ReduceL1                  | Y          | FP32, FP16 |
 | ReduceL2                  | Y          | FP32, FP16 |
 | ReduceLogSum              | Y          | FP32, FP16 |
@@ -189,7 +188,7 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | Tile                      | Y          | FP32, FP16, INT32, BOOL |
 | TopK                      | Y          | FP32, FP16 | `K` input must be an initializer
 | Transpose                 | Y          | FP32, FP16, INT32, INT8, BOOL |
-| Trilu                     | N          |
+| Trilu                     | Y          | FP32, FP16, INT32m INT8, BOOL |
 | Unique                    | N          |
 | Unsqueeze                 | Y          | FP32, FP16, INT32, INT8, BOOL | `axes` must be a constant tensor                                                                                                         |
 | Upsample                  | Y          | FP32, FP16 |

@@ -28,8 +28,8 @@ add_definitions("-DSOURCE_LENGTH=${SOURCE_LENGTH}")
 # Version information
 #--------------------------------------------------
 set(ONNX2TRT_MAJOR 8)
-set(ONNX2TRT_MINOR 4)
-set(ONNX2TRT_PATCH 3)
+set(ONNX2TRT_MINOR 5)
+set(ONNX2TRT_PATCH 0)
 set(ONNX2TRT_VERSION "${ONNX2TRT_MAJOR}.${ONNX2TRT_MINOR}.${ONNX2TRT_PATCH}" CACHE STRING "ONNX2TRT version")
 
 #--------------------------------------------------
