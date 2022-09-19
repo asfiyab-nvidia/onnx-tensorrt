@@ -1,3 +1,7 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "ImporterContext.hpp"
 
 namespace onnx2trt
@@ -97,7 +101,7 @@ void ImporterContext::registerLayer(nvinfer1::ILayer* layer, std::string const& 
         layer->setName(uniqueName.c_str());
         if (layer->getType() == nvinfer1::LayerType::kCONSTANT)
         {
-            if (basename != uniqueName)
+            if (basename != uniqueName && mConstantLayers.find(uniqueName) != mConstantLayers.end())
             {
                 LOG_ERROR("Constant layer: " << uniqueName << " can be a duplicate of: " << basename);
                 assert(!"Internal error: duplicate constant layers for the same weights");

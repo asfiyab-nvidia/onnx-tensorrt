@@ -101,7 +101,7 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | MaxRoiPool                | N          |
 | MaxUnpool                 | N          |
 | Mean                      | Y          | FP32, FP16, INT32 |
-| MeanVarianceNormalization | N          |
+| MeanVarianceNormalization | Y          | FP32, FP16 |
 | MelWeightMatrix           | N          |
 | Min                       | Y          | FP32, FP16, INT32 |
 | Mod                       | N          |
@@ -145,7 +145,7 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | Resize                    | Y          | FP32, FP16 | Supported resize transformation modes: `half_pixel`, `pytorch_half_pixel`, `tf_half_pixel_for_nn`, `asymmetric`, and `align_corners`.<br />Supported resize modes: `nearest`, `linear`.<br />Supported nearest modes: `floor`, `ceil`, `round_prefer_floor`, `round_prefer_ceil`   |
 | ReverseSequence           | Y          | FP32, FP16 | Dynamic input shapes are unsupported
 | RNN                       | Y          | FP32, FP16 | For bidirectional RNNs, activation functions must be the same for both the forward and reverse pass
-| RoiAlign                  | N          |
+| RoiAlign                  | Y          | FP32, FP16
 | Round                     | Y          | FP32, FP16, INT8 |
 | STFT                      | N          |
 | ScaledTanh                | Y          | FP32, FP16, INT8 |
