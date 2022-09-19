@@ -144,20 +144,6 @@ Status parseGraph(
                          << "], ";
             }
         }
-        // Erase all the optional tail inputs.
-        do
-        {
-            auto tailInput = nodeInputs.crbegin();
-            if (tailInput == nodeInputs.crend())
-            {
-                break;
-            }
-            if (*tailInput)
-            {
-                break;
-            }
-            nodeInputs.pop_back();
-        } while (true);
         LOG_VERBOSE(ssInputs.str());
 
         // Dispatch to appropriate converter.

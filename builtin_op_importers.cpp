@@ -2289,13 +2289,20 @@ DEFINE_BUILTIN_OP_IMPORTER(Loop)
     nvinfer1::ITensor* tripLimit{nullptr};
     if (inputs[0])
     {
-        tripLimit = convertToScalar(ctx, &convertToTensor(inputs[0], ctx));
-        ASSERT(tripLimit && "Failed to convert the trip-count input to a scalar.", ErrorCode::kINVALID_NODE);
-        ctx->loopTensors()[body.input(0).name()] = node.input(0);
-        loop->addTripLimit(*tripLimit, nvinfer1::TripLimit::kCOUNT);
-        // First graph input is iteration_num, so create a loop counter
-        auto counter = addLoopCounter(ctx, loop, 0);
-        ctx->registerTensor(counter, body.input(0).name());
+        // Some convertors will use INT_MAX to signify "use cond input as loop termination". From TRT's perspective,
+        // we can just treat these cases as an empty tripLimit.
+        bool const isMaxTripCount = inputs[0].is_weights()
+            && static_cast<int32_t*>(inputs[0].weights().values)[0] == std::numeric_limits<int32_t>::max();
+        if (!isMaxTripCount)
+        {
+            tripLimit = convertToScalar(ctx, &convertToTensor(inputs[0], ctx));
+            ASSERT(tripLimit && "Failed to convert the trip-count input to a scalar.", ErrorCode::kINVALID_NODE);
+            ctx->loopTensors()[body.input(0).name()] = node.input(0);
+            loop->addTripLimit(*tripLimit, nvinfer1::TripLimit::kCOUNT);
+            // First graph input is iteration_num, so create a loop counter
+            auto counter = addLoopCounter(ctx, loop, 0);
+            ctx->registerTensor(counter, body.input(0).name());
+        }
     }
     nvinfer1::ITensor* cond{nullptr};
     if (inputs[1])
@@ -3199,7 +3206,7 @@ DEFINE_BUILTIN_OP_IMPORTER(Pad)
         {
             weightsToVector<int32_t>(inputs.at(1).weights(), &onnxPadding);
         }
-        if (inputs.size() == 3)
+        if (inputs.size() >= 3 && !inputs.at(2).isNullTensor())
         {
             bool isValueSet = false;
             if (inputs.at(2).is_weights())
@@ -3226,6 +3233,11 @@ DEFINE_BUILTIN_OP_IMPORTER(Pad)
             {
                 valuePtr = &convertToTensor(inputs.at(2), ctx);
             }
+        }
+        // Opset 16 optional `axes` input
+        if (inputs.size() == 4 && !inputs.at(3).isNullTensor())
+        {
+            ASSERT(false && "TensorRT does not support dynamic axes for pad!", ErrorCode::kUNSUPPORTED_NODE);
         }
     }
 
@@ -4840,7 +4852,6 @@ DEFINE_BUILTIN_OP_IMPORTER(TopK)
     OnnxAttrs attrs(node, ctx);
     int32_t axis = attrs.get("axis", -1);
     int32_t k;
-    // Don't support TopK with k as a tensor
     if (ctx->getOpsetVersion() >= 10)
     {
         assertIsWeights(inputs.at(1), "This version of TensorRT only supports input K as an initializer.");
@@ -4867,7 +4878,17 @@ DEFINE_BUILTIN_OP_IMPORTER(TopK)
         ASSERT(tensorPtr && "Failed to unsqueeze input x.", ErrorCode::kUNSUPPORTED_NODE);
     }
 
-    nvinfer1::ITopKLayer* layer = ctx->network()->addTopK(*tensorPtr, nvinfer1::TopKOperation::kMAX, k, axisMask);
+    // Default is top max k.
+    auto operation = nvinfer1::TopKOperation::kMAX;
+    if (ctx->getOpsetVersion() >= 11)
+    {
+        int32_t const largest = attrs.get<int32_t>("largest", 1);
+        if (largest == 0)
+        {
+            operation = nvinfer1::TopKOperation::kMIN;
+        }
+    }
+    nvinfer1::ITopKLayer* layer = ctx->network()->addTopK(*tensorPtr, operation, k, axisMask);
     ctx->registerLayer(layer, getNodeName(node));
     ASSERT(layer && "Failed to add TopK layer.", ErrorCode::kUNSUPPORTED_NODE);
 
