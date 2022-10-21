@@ -39,9 +39,9 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | ConcatFromSequence        | N          |
 | Constant                  | Y          | FP32, FP16, INT32, INT8, BOOL |
 | ConstantOfShape           | Y          | FP32 |
-| Conv                      | Y          | FP32, FP16, INT8 | 2D or 3D convolutions only\. Weights `W` must be an initailizer                                                                                            |
+| Conv                      | Y          | FP32, FP16, INT8 |
 | ConvInteger               | N          |
-| ConvTranspose             | Y          | FP32, FP16, INT8 | 2D or 3D deconvolutions only\. Weights `W` must be an initializer                                                                        |
+| ConvTranspose             | Y          | FP32, FP16, INT8 |
 | Cos                       | Y          | FP32, FP16 |
 | Cosh                      | Y          | FP32, FP16 |
 | CumSum                    | Y          | FP32, FP16 | `axis` must be an initializer                                                                                                            |

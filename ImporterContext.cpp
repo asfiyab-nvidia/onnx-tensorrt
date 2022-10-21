@@ -29,7 +29,7 @@ void ImporterContext::popBaseNameScope()
     mBaseNameScopeStack.pop_back();
 }
 
-void ImporterContext::registerTensor(TensorOrWeights tensor, std::string const& basename)
+void ImporterContext::registerTensor(TensorOrWeights tensor, std::string const& basename, bool const checkUniqueName)
 {
     // TRT requires unique tensor names.
     std::string const& uniqueName = generateUniqueName(mTensorNames, basename);
@@ -64,13 +64,15 @@ void ImporterContext::registerTensor(TensorOrWeights tensor, std::string const& 
         }
     }
 
-    auto const p = this->tensors().emplace(basename, TensorOrWeights{});
+    std::string const& nameToCheck = checkUniqueName ? uniqueName : basename;
+
+    auto const p = this->tensors().emplace(nameToCheck, TensorOrWeights{});
     bool nameIsDuplicate = false;
     if (!mBaseNameScopeStack.empty())
     {
         // Remember original binding so it can be restored when scope is popped.
         auto const q
-            = mBaseNameScopeStack.back().emplace(basename, std::make_pair(p.second, std::move(p.first->second)));
+            = mBaseNameScopeStack.back().emplace(nameToCheck, std::make_pair(p.second, std::move(p.first->second)));
         // Check that scope did not already have a binding for basename.
         nameIsDuplicate = !q.second;
     }
@@ -82,7 +84,7 @@ void ImporterContext::registerTensor(TensorOrWeights tensor, std::string const& 
     }
     if (nameIsDuplicate)
     {
-        throw std::runtime_error("ONNX graph has duplicate tensor name: " + basename);
+        throw std::runtime_error("ONNX graph has duplicate tensor name: " + nameToCheck);
     }
     p.first->second = std::move(tensor);
 }
