@@ -58,7 +58,10 @@ Status addConditionalInputLayer(IImporterContext* ctx, nvinfer1::IIfConditional*
         inputsMap[name] = inputLayer;
         const std::string inputLayerName(name);
         ctx->registerLayer(inputLayer, inputLayerName + "_InputLayer");
-        ctx->registerTensor(TensorOrWeights{inputLayer->getOutput(0)}, inputLayerName + "_InputLayer_output");
+        // Note: Since multiple conditionals may use the same external tensor, check unique names for output tensors of
+        // IfConditionalInputLayers to avoid tensor name duplication.
+        ctx->registerTensor(
+            TensorOrWeights{inputLayer->getOutput(0)}, inputLayerName + "_InputLayer_output", /*checkUniqueName*/ true);
     }
     else
     {

@@ -2,7 +2,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "builtin_op_importers.hpp"
+// Include assert.h prior to the below WAR to ensure that assert()
+// definition obeys the NDEBUG define
+#include <assert.h>
+
+// Workaround for NDEBUG causing functional
+// differences in ONNX / protobuf code on aarch64 platforms which leads
+// to corruption.
+#if defined(__aarch64__) && defined(__linux__) && defined(NDEBUG)
+#undef NDEBUG
+#define REDEFINE_NDEBUG
+#endif
+
+#include <onnx/onnx_pb.h>
+
+#if defined(REDEFINE_NDEBUG)
+#define NDEBUG
+#undef REDEFINE_NDEBUG
+#endif
+
 #include "ConditionalHelpers.hpp"
 #include "LoopHelpers.hpp"
 #include "ModelImporter.hpp"
@@ -12,6 +30,7 @@
 #include "OnnxAttrs.hpp"
 #include "RNNHelpers.hpp"
 #include "ShapeTensor.hpp"
+#include "builtin_op_importers.hpp"
 #include "half.h"
 #include "onnx2trt_utils.hpp"
 
@@ -208,18 +227,16 @@ NodeImportResult batchnormFallback(
         = addConstantScalar(ctx, eps, ::ONNX_NAMESPACE::TensorProto::FLOAT, scalarShape)->getOutput(0);
 
     // batchnorm = scale * (input - mean) / sqrt(variance + epsilon) + bias
+    // The WAR is split the single c++ code line into 3 to avoid the sequence swap by compiler.
+    nvinfer1::ITensor* divisor
+        = ctx->network()
+              ->addUnary(*ctx->network()->addElementWise(*variance, *epsilon, eOp::kSUM)->getOutput(0), uOp::kSQRT)
+              ->getOutput(0);
+    nvinfer1::ITensor* dividend = ctx->network()->addElementWise(input, *mean, eOp::kSUB)->getOutput(0);
     nvinfer1::IElementWiseLayer* layer = ctx->network()->addElementWise(
         *ctx->network()
-             ->addElementWise(*scale,
-                 *ctx->network()
-                      ->addElementWise(*ctx->network()->addElementWise(input, *mean, eOp::kSUB)->getOutput(0),
-                          *ctx->network()
-                               ->addUnary(*ctx->network()->addElementWise(*variance, *epsilon, eOp::kSUM)->getOutput(0),
-                                   uOp::kSQRT)
-                               ->getOutput(0),
-                          eOp::kDIV)
-                      ->getOutput(0),
-                 eOp::kPROD)
+             ->addElementWise(
+                 *scale, *ctx->network()->addElementWise(*dividend, *divisor, eOp::kDIV)->getOutput(0), eOp::kPROD)
              ->getOutput(0),
         *bias, eOp::kSUM);
 
@@ -2608,10 +2625,11 @@ DEFINE_BUILTIN_OP_IMPORTER(LSTM)
     LOG_VERBOSE("c(t) -> " << ctGate->getDimensions());
 
     // C(t) = f(t) . C(t - 1) + i(t) . c(t)
+    nvinfer1::ITensor* operandIC = ctx->network()->addElementWise(*itGate, *ctGate, eOp::kPROD)->getOutput(0);
+    nvinfer1::ITensor* operandFC = ctx->network()->addElementWise(*ftGate, *Ct1->getOutput(0), eOp::kPROD)->getOutput(0);
     nvinfer1::ITensor* Ct
         = ctx->network()
-              ->addElementWise(*ctx->network()->addElementWise(*ftGate, *Ct1->getOutput(0), eOp::kPROD)->getOutput(0),
-                  *ctx->network()->addElementWise(*itGate, *ctGate, eOp::kPROD)->getOutput(0), eOp::kSUM)
+              ->addElementWise(*operandFC, *operandIC, eOp::kSUM)
               ->getOutput(0);
 
     nvinfer1::ITensor* singlePassShape
@@ -3153,6 +3171,8 @@ DEFINE_BUILTIN_OP_IMPORTER(OneHot)
     {
         depth = castHelper(ctx, depth, DataType::kINT32);
     }
+    depth = convertToScalar(ctx, depth);
+    ASSERT(depth && "Failed to convert the depth to a scalar.", ErrorCode::kINVALID_NODE);
 
     OnnxAttrs attrs(node, ctx);
     auto axis = attrs.get<int32_t>("axis", -1);
@@ -3704,16 +3724,16 @@ DEFINE_BUILTIN_OP_IMPORTER(Resize)
                 && "This version of TensorRT only support round_prefer_floor nearest mode in tf_half_pixel_for_nn!",
             ErrorCode::kUNSUPPORTED_NODE);
 
+        // clang-format off
         // The existence of a fourth input means a shape was passed as the resize parameter
         // For ONNX resize with the "sizes", TensorRT's resize maps to ONNX's in the following ways:
         // Nearest&Linear&Cubic:
-        //     align_corners        -> ResizeCoordinateTransformation::kALIGN_CORNERS  ResizeSelector::kFORMULA
-        //     ResizeRoundMode::kFLOOR half_pixel           -> ResizeCoordinateTransformation::kHALF_PIXEL
-        //     ResizeSelector::kFORMULA  ResizeRoundMode::kFLOOR asymmetric           ->
-        //     ResizeCoordinateTransformation::kASYMMETRIC     ResizeSelector::kFORMULA  ResizeRoundMode::kFLOOR
-        //     pytorch_half_pixel   -> ResizeCoordinateTransformation::kHALF_PIXEL     ResizeSelector::kUPPER
-        //     ResizeRoundMode::kFLOOR tf_half_pixel_for_nn -> ResizeCoordinateTransformation::kHALF_PIXEL
-        //     ResizeSelector::kFORMULA  ResizeRoundMode::kFLOOR
+        //     align_corners        -> ResizeCoordinateTransformation::kALIGN_CORNERS ResizeSelector::kFORMULA ResizeRoundMode::kFLOOR
+        //     half_pixel           -> ResizeCoordinateTransformation::kHALF_PIXEL    ResizeSelector::kFORMULA ResizeRoundMode::kFLOOR
+        //     asymmetric           -> ResizeCoordinateTransformation::kASYMMETRIC    ResizeSelector::kFORMULA ResizeRoundMode::kFLOOR
+        //     pytorch_half_pixel   -> ResizeCoordinateTransformation::kHALF_PIXEL    ResizeSelector::kUPPER   ResizeRoundMode::kFLOOR
+        //     tf_half_pixel_for_nn -> ResizeCoordinateTransformation::kHALF_PIXEL    ResizeSelector::kFORMULA ResizeRoundMode::kFLOOR
+        // clang-format on
 
         if (transformationMode == "align_corners")
         {
@@ -5053,7 +5073,7 @@ DEFINE_BUILTIN_OP_IMPORTER(Upsample)
             ASSERT((scales_weights.shape.nbDims == 1) && "The scales input must be 1D.", ErrorCode::kUNSUPPORTED_NODE);
             // Scale factors has batch dimension.
             ASSERT((scales_weights.count() == static_cast<size_t>(nbDims))
-                    && "The shape of the scales input must aligin with the dimensions of the input.",
+                    && "The shape of the scales input must align with the dimensions of the input.",
                 ErrorCode::kUNSUPPORTED_NODE);
             ASSERT((scales_weights.type == ::ONNX_NAMESPACE::TensorProto::FLOAT)
                     && "This version of TensorRT only supports FLOAT scales input.",
@@ -5079,10 +5099,9 @@ DEFINE_BUILTIN_OP_IMPORTER(Upsample)
             ASSERT((outDims.nbDims == 1) && "The scales input must be 1D.", ErrorCode::kUNSUPPORTED_NODE);
             // Scale factors has batch dimension.
             ASSERT((outDims.d[0] == nbDims)
-                    && "The shape of the scales input must aligin with the dimensions of the input.",
+                    && "The shape of the scales input must align with the dimensions of the input.",
                 ErrorCode::kUNSUPPORTED_NODE);
-            ASSERT(
-                (resizeShape->getType() == DataType::kINT32) && "Resize output shape type must be integral.",
+            ASSERT((resizeShape->getType() == DataType::kINT32) && "Resize output shape type must be integral.",
                 ErrorCode::kINVALID_NODE);
             layer->setInput(1, *resizeShape);
         }
@@ -5095,7 +5114,7 @@ DEFINE_BUILTIN_OP_IMPORTER(Upsample)
         auto scales = attrs.get<std::vector<float>>("scales");
         // Scale factors has batch dimension.
         ASSERT((static_cast<int32_t>(scales.size()) == nbDims)
-                && "The shape of the scales input must aligin with the dimensions of the input.",
+                && "The shape of the scales input must align with the dimensions of the input.",
             ErrorCode::kUNSUPPORTED_NODE);
         std::vector<float> scale_factors(nbDims, 1.0F);
         for (int32_t i = 0; i < nbDims; i++)
@@ -5168,6 +5187,8 @@ std::tuple<void const*, size_t> copyField(
 {
     static_assert(sizeof(std::string::value_type) == sizeof(uint8_t), "String type does not have 1 byte elements");
     std::copy(field.begin(), field.end(), std::back_inserter(fieldData[fieldName]));
+    // Append \0 as end of C style string.
+    fieldData[fieldName].push_back('\0');
     return std::make_tuple(fieldData[fieldName].data(), fieldData[fieldName].size());
 }
 
@@ -5178,6 +5199,8 @@ std::tuple<void const*, size_t> copyField(std::vector<std::string> const& repeat
     for (auto const& field : repeatedField)
     {
         std::copy(field.begin(), field.end(), std::back_inserter(fieldData[fieldName]));
+        // Append \0 as end of C style string.
+        fieldData[fieldName].push_back('\0');
     }
     return std::make_tuple(fieldData[fieldName].data(), fieldData[fieldName].size());
 }
