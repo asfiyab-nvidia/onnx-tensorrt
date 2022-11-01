@@ -1092,7 +1092,8 @@ void getKernelParams(IImporterContext* ctx, ::ONNX_NAMESPACE::NodeProto const& o
     // For ConvTranspose Layer
     if (attrs.count("output_padding"))
     {
-        *output_padding = attrs.get<nvinfer1::Dims>("output_padding");
+        auto const* onnxOutputPadding = attrs.at("output_padding");
+        setAttr(output_padding, onnxOutputPadding, nbSpatialDims, 0);
     }
 
     paddingMode
