@@ -2,6 +2,23 @@
 
 # ONNX-TensorRT Changelog
 
+# TensorRT 8.5 GA Release - 2022-11-1
+
+## Added
+
+For more details, see the 8.5 GA release notes for new features added in TensorRT 8.5
+
+- Added the `RandomNormal`, `RandomUniform`, `MeanVarianceNormalization`, `RoiAlign`, `Mod`, and `NonZero` operations
+- Added native support for the `NonMaxSuppression` operator
+- Added support for importing ONNX networks with `UINT8` I/O types
+
+## Fixed
+- Fixed an issue with output padding with 1D deconv
+- Fixed an issue when flattening 1D tensors
+- Fixed an issue when parsing String attributes from TRT plugins
+- Fixed an issue when importing `If` subgraphs with shared initializer names
+- Fixied an issue when importing `Loop` subgraphs with `INT_MAX` trip counts
+
 ## TensorRT 22.08 Release 2022-8-16
 ### Updated
 - Updated TensorRT version to 8.4.2
