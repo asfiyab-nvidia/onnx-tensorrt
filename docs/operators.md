@@ -70,7 +70,7 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | GlobalMaxPool             | Y          | FP32, FP16, INT8 |
 | Greater                   | Y          | FP32, FP16, INT32 |
 | GreaterOrEqual            | Y          | FP32, FP16, INT32 |
-| GridSample                | N          |
+| GridSample                | Y          | FP32, FP16
 | GRU                       | Y          | FP32, FP16 | For bidirectional GRUs, activation functions must be the same for both the forward and reverse pass
 | HammingWindow             | N          |
 | HannWindow                | N          |
@@ -110,7 +110,7 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | Neg                       | Y          | FP32, FP16, INT32 |
 | NegativeLogLikelihoodLoss | N          |
 | NonMaxSuppression         | Y          | FP32, FP16 |
-| NonZero                   | Y          |
+| NonZero                   | Y          | FP32, FP16
 | Not                       | Y          | BOOL |
 | OneHot                    | N          |
 | Optional                  | N          |
@@ -129,7 +129,7 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | RandomUniform             | Y          | FP32, FP16 | `seed` value is ignored by TensorRT
 | RandomUniformLike         | Y          | FP32, FP16 | `seed` value is ignored by TensorRT
 | Range                     | Y          | FP32, FP16, INT32 |
-| Reciprocal                | N          |
+| Reciprocal                | Y          | FP32, FP16 |
 | ReduceL1                  | Y          | FP32, FP16 |
 | ReduceL2                  | Y          | FP32, FP16 |
 | ReduceLogSum              | Y          | FP32, FP16 |
@@ -145,7 +145,7 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | Resize                    | Y          | FP32, FP16 | Supported resize transformation modes: `half_pixel`, `pytorch_half_pixel`, `tf_half_pixel_for_nn`, `asymmetric`, and `align_corners`.<br />Supported resize modes: `nearest`, `linear`.<br />Supported nearest modes: `floor`, `ceil`, `round_prefer_floor`, `round_prefer_ceil`   |
 | ReverseSequence           | Y          | FP32, FP16 | Dynamic input shapes are unsupported
 | RNN                       | Y          | FP32, FP16 | For bidirectional RNNs, activation functions must be the same for both the forward and reverse pass
-| RoiAlign                  | Y          | FP32, FP16
+| RoiAlign                  | Y          | FP32, FP16 |
 | Round                     | Y          | FP32, FP16, INT8 |
 | STFT                      | N          |
 | ScaledTanh                | Y          | FP32, FP16, INT8 |
@@ -188,7 +188,7 @@ See below for the support matrix of ONNX operators in ONNX-TensorRT.
 | Tile                      | Y          | FP32, FP16, INT32, BOOL |
 | TopK                      | Y          | FP32, FP16 | `K` input must be an initializer
 | Transpose                 | Y          | FP32, FP16, INT32, INT8, BOOL |
-| Trilu                     | Y          | FP32, FP16, INT32m INT8, BOOL |
+| Trilu                     | Y          | FP32, FP16, INT32, INT8, BOOL |
 | Unique                    | N          |
 | Unsqueeze                 | Y          | FP32, FP16, INT32, INT8, BOOL | `axes` must be a constant tensor                                                                                                         |
 | Upsample                  | Y          | FP32, FP16 |

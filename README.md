@@ -36,8 +36,8 @@ Python
     builder.create_network(explicit_batch)
 
 For examples of usage of these APIs see:
-* [sampleONNXMNIST](https://github.com/NVIDIA/TensorRT/tree/main/samples/opensource/sampleOnnxMNIST)
-* [sampleDynamicReshape](https://github.com/NVIDIA/TensorRT/tree/main/samples/opensource/sampleDynamicReshape)
+* [sampleONNXMNIST](https://github.com/NVIDIA/TensorRT/tree/main/samples/sampleOnnxMNIST)
+* [sampleDynamicReshape](https://github.com/NVIDIA/TensorRT/tree/main/samples/sampleDynamicReshape)
 
 ## Supported Operators
 
