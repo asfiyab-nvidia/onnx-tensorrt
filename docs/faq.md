@@ -10,7 +10,7 @@ For all uses we recommend installing the following tools:
 
 There are currently two officially supported tools for users to quickly check if an ONNX model can parse and build into a TensorRT engine from an ONNX file.
 
-For C++ users, there is the [trtexec](https://github.com/NVIDIA/TensorRT/tree/main/samples/opensource/trtexec) binary that is typically found in the `<tensorrt_root_dir>/bin` directory. The basic command of running an ONNX model is:
+For C++ users, there is the [trtexec](https://github.com/NVIDIA/TensorRT/tree/main/samples/trtexec) binary that is typically found in the `<tensorrt_root_dir>/bin` directory. The basic command of running an ONNX model is:
 
 `trtexec --onnx=model.onnx`
 
